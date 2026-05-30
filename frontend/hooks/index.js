@@ -1,10 +1,15 @@
 import { useState, useEffect, useCallback } from "react";
-import {
-  projectsApi,
-  tasksApi,
-  notesApi,
-  parseApiError,
-} from "../api";
+import projectService from "../services/project.service.js";
+import taskService from "../services/task.service.js";
+import noteService from "../services/note.service.js";
+
+// ── parseApiError helper ──────────────────────────────────────────────────────
+const parseApiError = (err) => {
+  if (err?.response?.data?.message) return err.response.data.message;
+  if (err?.response?.data?.errors?.length)
+    return err.response.data.errors.map((e) => e.message).join(", ");
+  return err?.message || "An unexpected error occurred";
+};
 
 // ─── useProjects ──────────────────────────────────────────────────────────────
 export function useProjects() {
@@ -16,8 +21,8 @@ export function useProjects() {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await projectsApi.list();
-      setProjects(data?.data ?? []);
+      const data = await projectService.listProjects();
+      setProjects(data ?? []);
     } catch (err) {
       setError(parseApiError(err));
     } finally {
@@ -31,9 +36,9 @@ export function useProjects() {
 
   const createProject = async (payload) => {
     try {
-      const { data } = await projectsApi.create(payload);
-      setProjects((prev) => [data?.data, ...prev]);
-      return { success: true, data: data?.data };
+      const data = await projectService.createProject(payload);
+      setProjects((prev) => [data, ...prev]);
+      return { success: true, data };
     } catch (err) {
       return { success: false, error: parseApiError(err) };
     }
@@ -41,9 +46,9 @@ export function useProjects() {
 
   const updateProject = async (id, payload) => {
     try {
-      const { data } = await projectsApi.update(id, payload);
+      const data = await projectService.updateProject(id, payload);
       setProjects((prev) =>
-        prev.map((p) => (p._id === id ? { ...p, ...data?.data } : p)),
+        prev.map((p) => (p._id === id ? { ...p, ...data } : p)),
       );
       return { success: true };
     } catch (err) {
@@ -53,7 +58,7 @@ export function useProjects() {
 
   const deleteProject = async (id) => {
     try {
-      await projectsApi.delete(id);
+      await projectService.deleteProject(id);
       setProjects((prev) => prev.filter((p) => p._id !== id));
       return { success: true };
     } catch (err) {
@@ -83,8 +88,8 @@ export function useProject(projectId) {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await projectsApi.get(projectId);
-      setProject(data?.data ?? null);
+      const data = await projectService.getProject(projectId);
+      setProject(data ?? null);
     } catch (err) {
       setError(parseApiError(err));
     } finally {
@@ -110,8 +115,8 @@ export function useMembers(projectId) {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await projectsApi.listMembers(projectId);
-      setMembers(data?.data ?? []);
+      const data = await projectService.listMembers(projectId);
+      setMembers(data ?? []);
     } catch (err) {
       setError(parseApiError(err));
     } finally {
@@ -125,8 +130,8 @@ export function useMembers(projectId) {
 
   const addMember = async (email, role) => {
     try {
-      const { data } = await projectsApi.addMember(projectId, { email, role });
-      setMembers((prev) => [...prev, data?.data]);
+      const data = await projectService.addMember(projectId, { email, role });
+      setMembers((prev) => [...prev, data]);
       return { success: true };
     } catch (err) {
       return { success: false, error: parseApiError(err) };
@@ -135,7 +140,7 @@ export function useMembers(projectId) {
 
   const updateMember = async (userId, role) => {
     try {
-      await projectsApi.updateMember(projectId, userId, { role });
+      await projectService.updateMemberRole(projectId, userId, { role });
       setMembers((prev) =>
         prev.map((m) => (m.user?._id === userId ? { ...m, role } : m)),
       );
@@ -147,7 +152,7 @@ export function useMembers(projectId) {
 
   const removeMember = async (userId) => {
     try {
-      await projectsApi.removeMember(projectId, userId);
+      await projectService.removeMember(projectId, userId);
       setMembers((prev) => prev.filter((m) => m.user?._id !== userId));
       return { success: true };
     } catch (err) {
@@ -177,8 +182,8 @@ export function useTasks(projectId) {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await tasksApi.list(projectId);
-      setTasks(data?.data ?? []);
+      const data = await taskService.listTasks(projectId);
+      setTasks(data?.tasks ?? data ?? []);
     } catch (err) {
       setError(parseApiError(err));
     } finally {
@@ -192,35 +197,34 @@ export function useTasks(projectId) {
 
   const createTask = async (payload) => {
     try {
-      const { data } = await tasksApi.create(projectId, payload);
-      setTasks((prev) => [...prev, data?.data]);
-      return { success: true, data: data?.data };
+      const data = await taskService.createTask(projectId, payload);
+      setTasks((prev) => [...prev, data]);
+      return { success: true, data };
     } catch (err) {
       return { success: false, error: parseApiError(err) };
     }
   };
 
   const updateTask = async (taskId, payload) => {
-    // Optimistic update
+    // optimistic
     setTasks((prev) =>
       prev.map((t) => (t._id === taskId ? { ...t, ...payload } : t)),
     );
     try {
-      const { data } = await tasksApi.update(projectId, taskId, payload);
+      const data = await taskService.updateTask(projectId, taskId, payload);
       setTasks((prev) =>
-        prev.map((t) => (t._id === taskId ? { ...t, ...data?.data } : t)),
+        prev.map((t) => (t._id === taskId ? { ...t, ...data } : t)),
       );
       return { success: true };
     } catch (err) {
-      // Rollback on failure
-      fetch();
+      fetch(); // rollback
       return { success: false, error: parseApiError(err) };
     }
   };
 
   const deleteTask = async (taskId) => {
     try {
-      await tasksApi.delete(projectId, taskId);
+      await taskService.deleteTask(projectId, taskId);
       setTasks((prev) => prev.filter((t) => t._id !== taskId));
       return { success: true };
     } catch (err) {
@@ -240,86 +244,6 @@ export function useTasks(projectId) {
   };
 }
 
-// ─── useTask (single) ─────────────────────────────────────────────────────────
-export function useTask(projectId, taskId) {
-  const [task, setTask] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  const fetch = useCallback(async () => {
-    if (!projectId || !taskId) return;
-    setLoading(true);
-    setError(null);
-    try {
-      const { data } = await tasksApi.get(projectId, taskId);
-      setTask(data?.data ?? null);
-    } catch (err) {
-      setError(parseApiError(err));
-    } finally {
-      setLoading(false);
-    }
-  }, [projectId, taskId]);
-
-  useEffect(() => {
-    fetch();
-  }, [fetch]);
-
-  const updateSubtask = async (subTaskId, payload) => {
-    try {
-      const { data } = await tasksApi.updateSubtask(
-        projectId,
-        subTaskId,
-        payload,
-      );
-      setTask((prev) => ({
-        ...prev,
-        subtasks: prev.subtasks?.map((s) =>
-          s._id === subTaskId ? { ...s, ...data?.data } : s,
-        ),
-      }));
-      return { success: true };
-    } catch (err) {
-      return { success: false, error: parseApiError(err) };
-    }
-  };
-
-  const createSubtask = async (payload) => {
-    try {
-      const { data } = await tasksApi.createSubtask(projectId, taskId, payload);
-      setTask((prev) => ({
-        ...prev,
-        subtasks: [...(prev.subtasks ?? []), data?.data],
-      }));
-      return { success: true };
-    } catch (err) {
-      return { success: false, error: parseApiError(err) };
-    }
-  };
-
-  const deleteSubtask = async (subTaskId) => {
-    try {
-      await tasksApi.deleteSubtask(projectId, subTaskId);
-      setTask((prev) => ({
-        ...prev,
-        subtasks: prev.subtasks?.filter((s) => s._id !== subTaskId),
-      }));
-      return { success: true };
-    } catch (err) {
-      return { success: false, error: parseApiError(err) };
-    }
-  };
-
-  return {
-    task,
-    loading,
-    error,
-    refetch: fetch,
-    updateSubtask,
-    createSubtask,
-    deleteSubtask,
-  };
-}
-
 // ─── useNotes ─────────────────────────────────────────────────────────────────
 export function useNotes(projectId) {
   const [notes, setNotes] = useState([]);
@@ -331,8 +255,8 @@ export function useNotes(projectId) {
     setLoading(true);
     setError(null);
     try {
-      const { data } = await notesApi.list(projectId);
-      setNotes(data?.data ?? []);
+      const data = await noteService.listNotes(projectId);
+      setNotes(data?.notes ?? data ?? []);
     } catch (err) {
       setError(parseApiError(err));
     } finally {
@@ -346,8 +270,8 @@ export function useNotes(projectId) {
 
   const createNote = async (payload) => {
     try {
-      const { data } = await notesApi.create(projectId, payload);
-      setNotes((prev) => [data?.data, ...prev]);
+      const data = await noteService.createNote(projectId, payload);
+      setNotes((prev) => [data, ...prev]);
       return { success: true };
     } catch (err) {
       return { success: false, error: parseApiError(err) };
@@ -356,9 +280,9 @@ export function useNotes(projectId) {
 
   const updateNote = async (noteId, payload) => {
     try {
-      const { data } = await notesApi.update(projectId, noteId, payload);
+      const data = await noteService.updateNote(projectId, noteId, payload);
       setNotes((prev) =>
-        prev.map((n) => (n._id === noteId ? { ...n, ...data?.data } : n)),
+        prev.map((n) => (n._id === noteId ? { ...n, ...data } : n)),
       );
       return { success: true };
     } catch (err) {
@@ -368,7 +292,7 @@ export function useNotes(projectId) {
 
   const deleteNote = async (noteId) => {
     try {
-      await notesApi.delete(projectId, noteId);
+      await noteService.deleteNote(projectId, noteId);
       setNotes((prev) => prev.filter((n) => n._id !== noteId));
       return { success: true };
     } catch (err) {
