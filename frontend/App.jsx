@@ -7,6 +7,9 @@ import AuthLayout from "./components/layout/AuthLayout.jsx";
 import AppShell from "./components/layout/AppShell.jsx";
 import LoginPage from "./pages/auth/LoginPage.jsx";
 import RegisterPage from "./pages/auth/RegisterPage.jsx";
+import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage.jsx";
+import ResetPasswordPage from "./pages/auth/ResetPasswordPage.jsx";
+import VerifyEmailPage from "./pages/auth/VerifyEmailPage.jsx";
 import DashboardPage from "./pages/app/DashboardPage.jsx";
 import ProjectPage from "./pages/app/ProjectPage.jsx";
 
@@ -41,7 +44,6 @@ function BootScreen() {
           <span style={A.bootTitle}>PROJECT CAMP</span>
           <span style={A.bootSub}>INITIALIZING SYSTEM{dots}</span>
         </div>
-        {/* Scan bar */}
         <motion.div
           initial={{ scaleX: 0, opacity: 0 }}
           animate={{ scaleX: 1, opacity: 1 }}
@@ -53,17 +55,30 @@ function BootScreen() {
   );
 }
 
-// ── auth guard wrapper ────────────────────────────────────────────────────────
-function AuthGuard({ children }) {
-  const { isAuth, isBooting } = useAuth();
-  if (isBooting) return <BootScreen />;
-  if (!isAuth) return <AuthRouter />;
-  return children;
+// ── url token parser ──────────────────────────────────────────────────────────
+// Reads ?token=xxx or /verify-email/TOKEN style URLs without a router
+function getUrlToken() {
+  const params = new URLSearchParams(window.location.search);
+  if (params.get("token")) return params.get("token");
+  const parts = window.location.pathname.split("/");
+  return parts[parts.length - 1] || null;
+}
+
+function getUrlPage() {
+  const path = window.location.pathname;
+  if (path.includes("verify-email")) return "verify-email";
+  if (path.includes("reset-password")) return "reset-password";
+  return null;
 }
 
 // ── unauthenticated router ────────────────────────────────────────────────────
 function AuthRouter() {
-  const [page, setPage] = useState("login");
+  const urlPage = getUrlPage();
+  const urlToken = getUrlToken();
+
+  // If user lands on a token URL, show the right page immediately
+  const [page, setPage] = useState(urlPage || "login");
+  const [token] = useState(urlToken);
 
   return (
     <AuthLayout>
@@ -73,9 +88,28 @@ function AuthRouter() {
             <LoginPage onNavigate={setPage} />
           </motion.div>
         )}
+
         {page === "register" && (
           <motion.div key="register" {...fadeSlide}>
             <RegisterPage onNavigate={setPage} />
+          </motion.div>
+        )}
+
+        {page === "forgot-password" && (
+          <motion.div key="forgot" {...fadeSlide}>
+            <ForgotPasswordPage onNavigate={setPage} />
+          </motion.div>
+        )}
+
+        {page === "reset-password" && (
+          <motion.div key="reset" {...fadeSlide}>
+            <ResetPasswordPage token={token} onNavigate={setPage} />
+          </motion.div>
+        )}
+
+        {page === "verify-email" && (
+          <motion.div key="verify" {...fadeSlide}>
+            <VerifyEmailPage token={token} onNavigate={setPage} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -87,14 +121,11 @@ function AuthRouter() {
 function AppRouter() {
   const { user, logout } = useAuth();
 
-  // ── navigation state ──────────────────────────────────────────────────────
   const [activePage, setActivePage] = useState("dashboard");
   const [activeProject, setActiveProject] = useState(null);
-
-  // ── project list + modal ──────────────────────────────────────────────────
   const [projects, setProjects] = useState([]);
-  const [showCreateProject, setShowCreateProject] = useState(false);
   const [projectsLoading, setProjectsLoading] = useState(false);
+  const [showCreateProject, setShowCreateProject] = useState(false);
 
   // Load projects on mount
   useEffect(() => {
@@ -127,17 +158,12 @@ function AppRouter() {
     setActivePage("dashboard");
   };
 
-  // ── sidebar nav ───────────────────────────────────────────────────────────
   const handleNavigate = (pageId) => {
-    if (pageId === "dashboard") {
-      setActiveProject(null);
-    }
+    if (pageId === "dashboard") setActiveProject(null);
     setActivePage(pageId);
   };
 
-  // ── render page content ───────────────────────────────────────────────────
   const renderPage = () => {
-    // Project detail view
     if (activePage === "project" && activeProject) {
       return (
         <ProjectPage project={activeProject} onBack={handleBackToDashboard} />
@@ -146,15 +172,6 @@ function AppRouter() {
 
     switch (activePage) {
       case "dashboard":
-        return (
-          <DashboardPage
-            projects={projects}
-            loading={projectsLoading}
-            onOpenProject={handleOpenProject}
-            onCreateProject={() => setShowCreateProject(true)}
-          />
-        );
-
       case "projects":
         return (
           <DashboardPage
@@ -164,25 +181,24 @@ function AppRouter() {
             onCreateProject={() => setShowCreateProject(true)}
           />
         );
-
       case "tasks":
         return (
           <PlaceholderPage
             label="MY TASKS"
-            sub="PERSONAL TASK VIEW — PHASE 5"
+            sub="PERSONAL TASK VIEW — COMING SOON"
           />
         );
-
       case "notes":
         return (
-          <PlaceholderPage label="NOTES" sub="GLOBAL NOTES VIEW — PHASE 5" />
+          <PlaceholderPage
+            label="NOTES"
+            sub="GLOBAL NOTES VIEW — COMING SOON"
+          />
         );
-
       case "members":
         return (
-          <PlaceholderPage label="TEAM" sub="ORGANISATION VIEW — PHASE 5" />
+          <PlaceholderPage label="TEAM" sub="ORGANISATION VIEW — COMING SOON" />
         );
-
       default:
         return <PlaceholderPage label="404" sub="PAGE NOT FOUND" />;
     }
@@ -210,7 +226,6 @@ function AppRouter() {
         </AnimatePresence>
       </AppShell>
 
-      {/* Global modals */}
       <CreateProjectModal
         isOpen={showCreateProject}
         onClose={() => setShowCreateProject(false)}
@@ -220,7 +235,15 @@ function AppRouter() {
   );
 }
 
-// ── placeholder for unbuilt pages ─────────────────────────────────────────────
+// ── auth guard ────────────────────────────────────────────────────────────────
+function AuthGuard({ children }) {
+  const { isAuth, isBooting } = useAuth();
+  if (isBooting) return <BootScreen />;
+  if (!isAuth) return <AuthRouter />;
+  return children;
+}
+
+// ── placeholder ───────────────────────────────────────────────────────────────
 function PlaceholderPage({ label, sub }) {
   return (
     <div style={A.placeholder}>
@@ -242,9 +265,7 @@ function PlaceholderPage({ label, sub }) {
 export default function App() {
   return (
     <>
-      {/* Global keyframe injector */}
       <style>{GLOBAL_CSS}</style>
-
       <AuthGuard>
         <AppRouter />
       </AuthGuard>
@@ -252,7 +273,7 @@ export default function App() {
   );
 }
 
-// ── shared animation preset ───────────────────────────────────────────────────
+// ── animation preset ──────────────────────────────────────────────────────────
 const fadeSlide = {
   initial: { opacity: 0, y: 12 },
   animate: { opacity: 1, y: 0 },
@@ -260,12 +281,11 @@ const fadeSlide = {
   transition: { duration: 0.22, ease: [0.4, 0, 0.2, 1] },
 };
 
-// ── global CSS (keyframes + CSS vars) injected once ──────────────────────────
+// ── global CSS ────────────────────────────────────────────────────────────────
 const GLOBAL_CSS = `
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
   :root {
-    /* Palette */
     --phosphor:       #00ff41;
     --phosphor-dim:   #00cc33;
     --amber:          #ffaa00;
@@ -276,49 +296,31 @@ const GLOBAL_CSS = `
     --border:         #1e241e;
     --text:           #d4e8d4;
     --muted:          #4a5c4a;
-
-    /* Typography */
-    --font-mono:    'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
-    --font-display: 'Share Tech Mono', 'JetBrains Mono', monospace;
+    --font-mono:      'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
+    --font-display:   'Share Tech Mono', 'JetBrains Mono', monospace;
   }
 
   html, body, #root {
-    height: 100%;
-    width: 100%;
+    height: 100%; width: 100%;
     background: var(--bg);
     color: var(--text);
     font-family: var(--font-mono);
     overflow: hidden;
   }
 
-  /* Scrollbar */
-  ::-webkit-scrollbar { width: 4px; height: 4px; }
-  ::-webkit-scrollbar-track { background: var(--bg); }
-  ::-webkit-scrollbar-thumb { background: var(--border); }
+  ::-webkit-scrollbar        { width: 4px; height: 4px; }
+  ::-webkit-scrollbar-track  { background: var(--bg); }
+  ::-webkit-scrollbar-thumb  { background: var(--border); }
   ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
 
-  /* Keyframes */
-  @keyframes blink {
-    0%, 100% { opacity: 1; }
-    50%       { opacity: 0; }
-  }
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50%       { opacity: 0.4; }
-  }
-  @keyframes shimmer {
-    0%   { transform: translateX(-100%); }
-    100% { transform: translateX(200%); }
-  }
+  @keyframes blink   { 0%,100%{opacity:1}50%{opacity:0} }
+  @keyframes pulse   { 0%,100%{opacity:1}50%{opacity:0.4} }
+  @keyframes spin    { to{transform:rotate(360deg)} }
+  @keyframes shimmer { 0%{transform:translateX(-100%)}100%{transform:translateX(200%)} }
 
-  /* Google Fonts — terminal aesthetic */
   @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Share+Tech+Mono&display=swap');
 
-  /* Button reset */
   button { font-family: var(--font-mono); }
-
-  /* Nav item hover edit icon reveal */
-  [data-field]:hover [data-edit-icon] { opacity: 1 !important; }
 `;
 
 // ── styles ────────────────────────────────────────────────────────────────────
