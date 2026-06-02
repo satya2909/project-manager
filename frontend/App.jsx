@@ -237,9 +237,9 @@ function AppRouter() {
 
 // ── auth guard ────────────────────────────────────────────────────────────────
 function AuthGuard({ children }) {
-  const { isAuth, isBooting } = useAuth();
-  if (isBooting) return <BootScreen />;
-  if (!isAuth) return <AuthRouter />;
+  const { isAuthenticated, loading } = useAuth();
+  if (loading) return <BootScreen />;
+  if (!isAuthenticated) return <AuthRouter />;
   return children;
 }
 
