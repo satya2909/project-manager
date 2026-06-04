@@ -22,7 +22,7 @@ export function useProjects() {
     setError(null);
     try {
       const data = await projectService.listProjects();
-      setProjects(data ?? []);
+      setProjects(data?.projects ?? data ?? []);
     } catch (err) {
       setError(parseApiError(err));
     } finally {
@@ -116,7 +116,7 @@ export function useMembers(projectId) {
     setError(null);
     try {
       const data = await projectService.listMembers(projectId);
-      setMembers(data ?? []);
+      setMembers(data?.members ?? data ?? []);
     } catch (err) {
       setError(parseApiError(err));
     } finally {

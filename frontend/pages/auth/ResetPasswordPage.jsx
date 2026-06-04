@@ -1,5 +1,4 @@
 import { useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
 import {
   Eye,
   EyeOff,
@@ -8,8 +7,7 @@ import {
   ShieldCheck,
   Check,
 } from "lucide-react";
-import { useAuth } from "../../context/AuthContext";
-import AuthLayout from "../../components/layout/AuthLayout";
+import { useAuth } from "../../context/authcontext";
 import { InlineError, InlineSuccess, Spinner } from "../../components/ui";
 
 function getStrength(password) {
@@ -25,10 +23,8 @@ function getStrength(password) {
   return { score, label: "strong", color: "var(--signal)" };
 }
 
-export default function ResetPasswordPage() {
+export default function ResetPasswordPage({ token, onNavigate }) {
   const { resetPassword } = useAuth();
-  const { token } = useParams();
-  const navigate = useNavigate();
 
   const [form, setForm] = useState({ password: "", confirm: "" });
   const [showPass, setShowPass] = useState(false);
@@ -61,15 +57,14 @@ export default function ResetPasswordPage() {
 
     if (result.success) {
       setSuccess("Password updated successfully!");
-      setTimeout(() => navigate("/login"), 2500);
+      setTimeout(() => onNavigate("login"), 2500);
     } else {
       setError(result.error);
     }
   };
 
   return (
-    <AuthLayout>
-      <div className="animate-fade-up delay-0">
+    <div className="animate-fade-up delay-0">
         {/* Header */}
         <div style={{ marginBottom: "2.25rem" }}>
           <div
@@ -333,8 +328,9 @@ export default function ResetPasswordPage() {
             justifyContent: "center",
           }}
         >
-          <Link
-            to="/login"
+          <button
+            type="button"
+            onClick={() => onNavigate("login")}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -342,17 +338,20 @@ export default function ResetPasswordPage() {
               fontFamily: "var(--font-mono)",
               fontSize: "0.8rem",
               color: "var(--ghost)",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
               textDecoration: "none",
               transition: "color 120ms ease",
+              padding: 0,
             }}
             onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text)")}
             onMouseLeave={(e) => (e.currentTarget.style.color = "var(--ghost)")}
           >
             <ArrowLeft size={14} />
             back to sign in
-          </Link>
+          </button>
         </div>
       </div>
-    </AuthLayout>
   );
 }

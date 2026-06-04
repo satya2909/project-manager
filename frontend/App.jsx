@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { useAuth } from "./context/AuthContext.jsx";
+import { useAuth } from "./context/authcontext.jsx";
 
 // ── layouts & pages ───────────────────────────────────────────────────────────
 import AuthLayout from "./components/layout/AuthLayout.jsx";
@@ -68,6 +68,9 @@ function getUrlPage() {
   const path = window.location.pathname;
   if (path.includes("verify-email")) return "verify-email";
   if (path.includes("reset-password")) return "reset-password";
+  if (path.includes("register")) return "register";
+  if (path.includes("forgot-password")) return "forgot-password";
+  if (path.includes("login")) return "login";
   return null;
 }
 
@@ -80,36 +83,50 @@ function AuthRouter() {
   const [page, setPage] = useState(urlPage || "login");
   const [token] = useState(urlToken);
 
+  const handleNavigate = (newPage) => {
+    setPage(newPage);
+    window.history.pushState({}, "", `/${newPage}`);
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const currentPage = getUrlPage();
+      setPage(currentPage || "login");
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
   return (
     <AuthLayout>
       <AnimatePresence mode="wait">
         {page === "login" && (
           <motion.div key="login" {...fadeSlide}>
-            <LoginPage onNavigate={setPage} />
+            <LoginPage onNavigate={handleNavigate} />
           </motion.div>
         )}
 
         {page === "register" && (
           <motion.div key="register" {...fadeSlide}>
-            <RegisterPage onNavigate={setPage} />
+            <RegisterPage onNavigate={handleNavigate} />
           </motion.div>
         )}
 
         {page === "forgot-password" && (
           <motion.div key="forgot" {...fadeSlide}>
-            <ForgotPasswordPage onNavigate={setPage} />
+            <ForgotPasswordPage onNavigate={handleNavigate} />
           </motion.div>
         )}
 
         {page === "reset-password" && (
           <motion.div key="reset" {...fadeSlide}>
-            <ResetPasswordPage token={token} onNavigate={setPage} />
+            <ResetPasswordPage token={token} onNavigate={handleNavigate} />
           </motion.div>
         )}
 
         {page === "verify-email" && (
           <motion.div key="verify" {...fadeSlide}>
-            <VerifyEmailPage token={token} onNavigate={setPage} />
+            <VerifyEmailPage token={token} onNavigate={handleNavigate} />
           </motion.div>
         )}
       </AnimatePresence>
@@ -121,7 +138,21 @@ function AuthRouter() {
 function AppRouter() {
   const { user, logout } = useAuth();
 
-  const [activePage, setActivePage] = useState("dashboard");
+  const getAppPageFromUrl = () => {
+    const path = window.location.pathname;
+    const parts = path.split("/").filter(Boolean);
+    if (parts[0] === "projects" && parts[1]) {
+      return { page: "project", projectId: parts[1] };
+    }
+    const validPages = ["dashboard", "projects", "tasks", "notes", "members"];
+    if (validPages.includes(parts[0])) {
+      return { page: parts[0], projectId: null };
+    }
+    return { page: "dashboard", projectId: null };
+  };
+
+  const initialUrlInfo = getAppPageFromUrl();
+  const [activePage, setActivePage] = useState(initialUrlInfo.page);
   const [activeProject, setActiveProject] = useState(null);
   const [projects, setProjects] = useState([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
@@ -133,7 +164,31 @@ function AppRouter() {
       setProjectsLoading(true);
       try {
         const data = await projectService.listProjects();
-        setProjects(data || []);
+        const projectsList = data?.projects || [];
+        setProjects(projectsList);
+        
+        const urlInfo = getAppPageFromUrl();
+        if (urlInfo.page === "project" && urlInfo.projectId) {
+          const found = projectsList.find((p) => p._id === urlInfo.projectId);
+          if (found) {
+            setActiveProject(found);
+          } else {
+            // If not in the preloaded list, attempt to fetch it directly from the API
+            try {
+              const projectData = await projectService.getProject(urlInfo.projectId);
+              if (projectData?.project) {
+                setActiveProject(projectData.project);
+              } else {
+                setActivePage("dashboard");
+                window.history.replaceState({}, "", "/dashboard");
+              }
+            } catch (err) {
+              console.error("Project direct fetch failed", err);
+              setActivePage("dashboard");
+              window.history.replaceState({}, "", "/dashboard");
+            }
+          }
+        }
       } catch (e) {
         console.error("Failed to load projects", e);
       } finally {
@@ -142,26 +197,58 @@ function AppRouter() {
     })();
   }, []);
 
+  const updateUrl = (pageId, project = null) => {
+    if (pageId === "project" && project) {
+      window.history.pushState({}, "", `/projects/${project._id}`);
+    } else {
+      window.history.pushState({}, "", `/${pageId}`);
+    }
+  };
+
   const handleCreateProject = async (payload) => {
-    const created = await projectService.createProject(payload);
-    setProjects((p) => [created, ...p]);
-    return created;
+    const data = await projectService.createProject(payload);
+    const createdProject = data?.project;
+    if (createdProject) {
+      setProjects((p) => [createdProject, ...p]);
+    }
+    return createdProject;
   };
 
   const handleOpenProject = (project) => {
     setActiveProject(project);
     setActivePage("project");
+    updateUrl("project", project);
   };
 
   const handleBackToDashboard = () => {
     setActiveProject(null);
     setActivePage("dashboard");
+    updateUrl("dashboard");
   };
 
   const handleNavigate = (pageId) => {
-    if (pageId === "dashboard") setActiveProject(null);
+    setActiveProject(null);
     setActivePage(pageId);
+    updateUrl(pageId);
   };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const urlInfo = getAppPageFromUrl();
+      if (urlInfo.page === "project" && urlInfo.projectId) {
+        const found = projects.find((p) => p._id === urlInfo.projectId);
+        if (found) {
+          setActiveProject(found);
+          setActivePage("project");
+        }
+      } else {
+        setActiveProject(null);
+        setActivePage(urlInfo.page);
+      }
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, [projects]);
 
   const renderPage = () => {
     if (activePage === "project" && activeProject) {
@@ -175,6 +262,7 @@ function AppRouter() {
       case "projects":
         return (
           <DashboardPage
+            activePage={activePage}
             projects={projects}
             loading={projectsLoading}
             onOpenProject={handleOpenProject}

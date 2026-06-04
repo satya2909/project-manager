@@ -1,15 +1,12 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
 import { CheckCircle, XCircle, ArrowRight, RotateCcw } from "lucide-react";
 import { authApi } from "../../api";
-import { useAuth } from "../../context/AuthContext";
-import AuthLayout from "../../components/layout/AuthLayout";
+import { useAuth } from "../../context/authcontext";
 import { Spinner } from "../../components/ui";
 
 const STATE = { LOADING: "loading", SUCCESS: "success", ERROR: "error" };
 
-export default function VerifyEmailPage() {
-  const { token } = useParams();
+export default function VerifyEmailPage({ token, onNavigate }) {
   const { resendVerification } = useAuth();
 
   const [status, setStatus] = useState(STATE.LOADING);
@@ -38,8 +35,7 @@ export default function VerifyEmailPage() {
   // ── Loading ──────────────────────────────────────────────────────────────────
   if (status === STATE.LOADING) {
     return (
-      <AuthLayout>
-        <div
+      <div
           style={{
             display: "flex",
             flexDirection: "column",
@@ -84,15 +80,13 @@ export default function VerifyEmailPage() {
             </p>
           </div>
         </div>
-      </AuthLayout>
     );
   }
 
   // ── Success ──────────────────────────────────────────────────────────────────
   if (status === STATE.SUCCESS) {
     return (
-      <AuthLayout>
-        <div className="animate-scale-in" style={{ textAlign: "center" }}>
+      <div className="animate-scale-in" style={{ textAlign: "center" }}>
           {/* Icon */}
           <div
             style={{
@@ -192,28 +186,28 @@ export default function VerifyEmailPage() {
             ))}
           </div>
 
-          <Link
-            to="/login"
+          <button
+            type="button"
+            onClick={() => onNavigate("login")}
             className="btn btn-primary"
             style={{
               display: "inline-flex",
               justifyContent: "center",
               padding: "0.75rem 1.5rem",
               textDecoration: "none",
+              cursor: "pointer",
             }}
           >
             proceed to sign in
             <ArrowRight size={15} />
-          </Link>
+          </button>
         </div>
-      </AuthLayout>
     );
   }
 
   // ── Error ────────────────────────────────────────────────────────────────────
   return (
-    <AuthLayout>
-      <div className="animate-scale-in" style={{ textAlign: "center" }}>
+    <div className="animate-scale-in" style={{ textAlign: "center" }}>
         {/* Icon */}
         <div
           style={{
@@ -320,8 +314,9 @@ export default function VerifyEmailPage() {
           </div>
         )}
 
-        <Link
-          to="/login"
+        <button
+          type="button"
+          onClick={() => onNavigate("login")}
           style={{
             display: "inline-flex",
             alignItems: "center",
@@ -329,15 +324,18 @@ export default function VerifyEmailPage() {
             fontFamily: "var(--font-mono)",
             fontSize: "0.8rem",
             color: "var(--ghost)",
+            background: "none",
+            border: "none",
+            cursor: "pointer",
             textDecoration: "none",
             transition: "color 120ms ease",
+            padding: 0,
           }}
           onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text)")}
           onMouseLeave={(e) => (e.currentTarget.style.color = "var(--ghost)")}
         >
           ← back to sign in
-        </Link>
+        </button>
       </div>
-    </AuthLayout>
   );
 }

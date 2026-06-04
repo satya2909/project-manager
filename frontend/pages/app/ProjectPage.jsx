@@ -4,7 +4,7 @@ import KanbanBoard from "../../components/ui/KanbanBoard.jsx";
 import CreateTaskModal from "../../components/ui/CreateTaskModal.jsx";
 import TaskDetailDrawer from "../../components/ui/TaskDetailDrawer.jsx";
 import { useTasks, useMembers, useNotes } from "../../hooks/index.js";
-import { useAuth } from "../../context/AuthContext.jsx";
+import { useAuth } from "../../context/authcontext.jsx";
 
 // ── role badge ────────────────────────────────────────────────────────────────
 const ROLE_CFG = {

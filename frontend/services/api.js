@@ -2,7 +2,7 @@ import axios from "axios";
 
 // ── base instance ─────────────────────────────────────────────────────────────
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://localhost:3000/api/v1",
+  baseURL: "http://localhost:3000/api/v1",
   withCredentials: true, // send httpOnly refresh-token cookie
   headers: { "Content-Type": "application/json" },
 });

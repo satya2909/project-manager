@@ -1,11 +1,9 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
 import { ArrowRight, ArrowLeft, Mail, Send } from "lucide-react";
-import { useAuth } from "../../context/AuthContext";
-import AuthLayout from "../../components/layout/AuthLayout";
+import { useAuth } from "../../context/authcontext";
 import { InlineError, Spinner } from "../../components/ui";
 
-export default function ForgotPasswordPage() {
+export default function ForgotPasswordPage({ onNavigate }) {
   const { forgotPassword } = useAuth();
 
   const [email, setEmail] = useState("");
@@ -33,8 +31,7 @@ export default function ForgotPasswordPage() {
   // ── Sent state ───────────────────────────────────────────────────────────────
   if (sent) {
     return (
-      <AuthLayout>
-        <div className="animate-scale-in" style={{ textAlign: "center" }}>
+      <div className="animate-scale-in" style={{ textAlign: "center" }}>
           {/* Icon */}
           <div
             style={{
@@ -143,8 +140,9 @@ export default function ForgotPasswordPage() {
             </button>
           </div>
 
-          <Link
-            to="/login"
+          <button
+            type="button"
+            onClick={() => onNavigate("login")}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -152,24 +150,26 @@ export default function ForgotPasswordPage() {
               fontFamily: "var(--font-mono)",
               fontSize: "0.8rem",
               color: "var(--ghost)",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
               textDecoration: "none",
               transition: "color 120ms ease",
+              padding: 0,
             }}
             onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text)")}
             onMouseLeave={(e) => (e.currentTarget.style.color = "var(--ghost)")}
           >
             <ArrowLeft size={14} />
             back to sign in
-          </Link>
+          </button>
         </div>
-      </AuthLayout>
     );
   }
 
   // ── Form state ───────────────────────────────────────────────────────────────
   return (
-    <AuthLayout>
-      <div className="animate-fade-up delay-0">
+    <div className="animate-fade-up delay-0">
         {/* Header */}
         <div style={{ marginBottom: "2.25rem" }}>
           <div
@@ -295,8 +295,9 @@ export default function ForgotPasswordPage() {
             justifyContent: "center",
           }}
         >
-          <Link
-            to="/login"
+          <button
+            type="button"
+            onClick={() => onNavigate("login")}
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -304,17 +305,20 @@ export default function ForgotPasswordPage() {
               fontFamily: "var(--font-mono)",
               fontSize: "0.8rem",
               color: "var(--ghost)",
+              background: "none",
+              border: "none",
+              cursor: "pointer",
               textDecoration: "none",
               transition: "color 120ms ease",
+              padding: 0,
             }}
             onMouseEnter={(e) => (e.currentTarget.style.color = "var(--text)")}
             onMouseLeave={(e) => (e.currentTarget.style.color = "var(--ghost)")}
           >
             <ArrowLeft size={14} />
             back to sign in
-          </Link>
+          </button>
         </div>
       </div>
-    </AuthLayout>
   );
 }

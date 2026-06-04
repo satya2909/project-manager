@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 
 const STATUS_OPTIONS = [
@@ -160,7 +161,7 @@ export default function CreateTaskModal({
     { id: "subtasks", label: `SUBTASKS [${subtasks.length}]` },
   ];
 
-  return (
+  const modalContent = (
     <AnimatePresence>
       {isOpen && (
         <>
@@ -173,13 +174,14 @@ export default function CreateTaskModal({
             style={S.backdrop}
           />
 
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 14 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 8 }}
-            transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-            style={S.modal}
-          >
+          <div style={S.wrapper}>
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 14 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 8 }}
+              transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
+              style={S.modal}
+            >
             {/* Corner brackets */}
             {[
               {
@@ -439,11 +441,16 @@ export default function CreateTaskModal({
                 </button>
               </div>
             </div>
-          </motion.div>
+            </motion.div>
+          </div>
         </>
       )}
     </AnimatePresence>
   );
+
+  return typeof document !== "undefined"
+    ? createPortal(modalContent, document.body)
+    : null;
 }
 
 const S = {
@@ -454,19 +461,25 @@ const S = {
     backdropFilter: "blur(2px)",
     zIndex: 1000,
   },
-  modal: {
+  wrapper: {
     position: "fixed",
-    top: "50%",
-    left: "50%",
-    transform: "translate(-50%,-50%)",
+    inset: 0,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 1001,
+    pointerEvents: "none",
+  },
+  modal: {
     width: 520,
     background: "var(--surface)",
     border: "1px solid var(--border)",
-    zIndex: 1001,
     fontFamily: "var(--font-mono)",
     display: "flex",
     flexDirection: "column",
     maxHeight: "90vh",
+    position: "relative",
+    pointerEvents: "auto",
   },
   corner: { position: "absolute", width: 12, height: 12 },
 
