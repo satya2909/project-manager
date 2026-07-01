@@ -9,9 +9,10 @@ const NAV_ITEMS = [
   { id: "members", label: "TEAM", icon: TeamIcon },
 ];
 
+// ─── Icons ────────────────────────────────────────────────────────────────────
 function GridIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
       <rect
         x="1"
         y="1"
@@ -47,10 +48,9 @@ function GridIcon() {
     </svg>
   );
 }
-
 function FolderIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
       <path
         d="M1 4h5l2 2h7v8H1V4z"
         stroke="currentColor"
@@ -60,10 +60,9 @@ function FolderIcon() {
     </svg>
   );
 }
-
 function TaskIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
       <rect
         x="1"
         y="1"
@@ -81,10 +80,9 @@ function TaskIcon() {
     </svg>
   );
 }
-
 function NoteIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
       <rect
         x="2"
         y="1"
@@ -102,10 +100,9 @@ function NoteIcon() {
     </svg>
   );
 }
-
 function TeamIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
       <circle cx="6" cy="5" r="3" stroke="currentColor" strokeWidth="1.5" />
       <path
         d="M1 14c0-3 2-5 5-5s5 2 5 5"
@@ -123,10 +120,9 @@ function TeamIcon() {
     </svg>
   );
 }
-
 function LogoutIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
       <path
         d="M6 2H2v12h4M11 5l3 3-3 3M6 8h8"
         stroke="currentColor"
@@ -137,29 +133,60 @@ function LogoutIcon() {
     </svg>
   );
 }
-
-function MenuIcon() {
+function CollapseIcon({ collapsed }) {
   return (
-    <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
       <path
-        d="M2 4h14M2 9h14M2 14h14"
+        d={collapsed ? "M3 7h8M8 4l3 3-3 3" : "M11 7H3M6 4L3 7l3 3"}
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="square"
+        strokeLinejoin="miter"
       />
     </svg>
   );
 }
 
+// ─── Ambient signal bars (sidebar signature element) ──────────────────────────
+// Five thin bars that pulse independently — ambient data atmosphere.
+// Heights and delays are staggered so they feel organic, not mechanical.
+function SignalBars() {
+  const bars = [
+    { delay: "0s", dur: "2.1s" },
+    { delay: "0.4s", dur: "1.8s" },
+    { delay: "0.7s", dur: "2.4s" },
+    { delay: "1.1s", dur: "1.9s" },
+    { delay: "0.2s", dur: "2.6s" },
+  ];
+  return (
+    <div style={S.signalBars}>
+      {bars.map((b, i) => (
+        <div
+          key={i}
+          style={{
+            ...S.signalBar,
+            animationDelay: b.delay,
+            animationDuration: b.dur,
+          }}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─── AppShell ─────────────────────────────────────────────────────────────────
 export default function AppShell({
   activePage = "dashboard",
+  activeProjectName = null, // shown in topbar when inside a project
   onNavigate,
+  onLogout, // ← was missing, now wired
   children,
   user,
 }) {
   const [collapsed, setCollapsed] = useState(false);
   const [time, setTime] = useState(new Date());
   const [scanHover, setScanHover] = useState(null);
+  const [logoutConfirm, setLogoutConfirm] = useState(false);
 
   useEffect(() => {
     const t = setInterval(() => setTime(new Date()), 1000);
@@ -175,50 +202,85 @@ export default function AppShell({
     })
     .toUpperCase();
 
-  return (
-    <div style={styles.root}>
-      {/* Scanline overlay */}
-      <div style={styles.scanlines} />
+  // Two-step logout: first click arms the button, second click fires.
+  const handleLogoutClick = () => {
+    if (logoutConfirm) {
+      onLogout?.();
+      setLogoutConfirm(false);
+    } else {
+      setLogoutConfirm(true);
+      // Auto-disarm after 3 seconds if user doesn't confirm
+      setTimeout(() => setLogoutConfirm(false), 3000);
+    }
+  };
 
+  // Derive breadcrumb path for topbar
+  const crumbPage = activeProjectName
+    ? `PROJECTS/${activeProjectName.toUpperCase()}`
+    : activePage.toUpperCase();
+
+  // Role display
+  const roleLabel = user?.role
+    ? user.role.replace("_", " ").toUpperCase()
+    : "MEMBER";
+  const roleColor =
+    user?.role === "admin"
+      ? "var(--ice)"
+      : user?.role === "project_admin"
+        ? "var(--amber)"
+        : "var(--phosphor)";
+
+  return (
+    <div style={S.root}>
       {/* SIDEBAR */}
       <motion.aside
-        animate={{ width: collapsed ? 64 : 220 }}
+        animate={{ width: collapsed ? 56 : 216 }}
         transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-        style={styles.sidebar}
+        style={S.sidebar}
       >
+        {/* Ambient signal bars — signature element */}
+        <SignalBars />
+
         {/* Logo / Brand */}
-        <div style={styles.brand}>
-          <div style={styles.brandLogo}>
-            <span style={styles.brandLogoInner}>P</span>
+        <div style={S.brand}>
+          <div style={S.brandLogo}>
+            <span style={S.brandLogoInner}>P</span>
           </div>
           <AnimatePresence>
             {!collapsed && (
               <motion.div
-                initial={{ opacity: 0, x: -8 }}
+                initial={{ opacity: 0, x: -6 }}
                 animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -8 }}
+                exit={{ opacity: 0, x: -6 }}
                 transition={{ duration: 0.15 }}
-                style={styles.brandText}
+                style={S.brandText}
               >
-                <span style={styles.brandName}>PROJECT</span>
-                <span style={styles.brandSub}>CAMP</span>
+                <span style={S.brandName}>PROJECT</span>
+                <span style={S.brandSub}>CAMP</span>
               </motion.div>
             )}
           </AnimatePresence>
         </div>
 
-        {/* Clock */}
-        {!collapsed && (
-          <div style={styles.clock}>
-            <span style={styles.clockTime}>{timeStr}</span>
-            <span style={styles.clockDate}>{dateStr}</span>
-          </div>
-        )}
+        {/* Clock — only when expanded */}
+        <AnimatePresence>
+          {!collapsed && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              style={S.clock}
+            >
+              <span style={S.clockTime}>{timeStr}</span>
+              <span style={S.clockDate}>{dateStr}</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
-        <div style={styles.divider} />
+        <div style={S.divider} />
 
-        {/* Nav */}
-        <nav style={styles.nav}>
+        {/* Navigation */}
+        <nav style={S.nav}>
           {NAV_ITEMS.map((item) => {
             const isActive = activePage === item.id;
             const isHovered = scanHover === item.id;
@@ -228,34 +290,35 @@ export default function AppShell({
                 onClick={() => onNavigate?.(item.id)}
                 onMouseEnter={() => setScanHover(item.id)}
                 onMouseLeave={() => setScanHover(null)}
+                aria-label={item.label}
+                aria-current={isActive ? "page" : undefined}
                 style={{
-                  ...styles.navItem,
-                  ...(isActive ? styles.navItemActive : {}),
-                  ...(isHovered && !isActive ? styles.navItemHover : {}),
+                  ...S.navItem,
+                  ...(isActive ? S.navItemActive : {}),
+                  ...(isHovered && !isActive ? S.navItemHover : {}),
                   justifyContent: collapsed ? "center" : "flex-start",
+                  paddingLeft: collapsed ? 0 : undefined,
                 }}
               >
-                {/* Active indicator line */}
-                {isActive && <div style={styles.activeBar} />}
+                {isActive && <div style={S.activeBar} />}
 
-                {/* Scan sweep on hover */}
                 {(isHovered || isActive) && (
                   <motion.div
                     key={item.id + "-sweep"}
                     initial={{ x: "-100%" }}
-                    animate={{ x: "100%" }}
-                    transition={{ duration: 0.5, ease: "linear" }}
-                    style={styles.scanSweep}
+                    animate={{ x: "200%" }}
+                    transition={{ duration: 0.55, ease: "linear" }}
+                    style={S.scanSweep}
                   />
                 )}
 
                 <span
                   style={{
-                    ...styles.navIcon,
+                    ...S.navIcon,
                     color: isActive
                       ? "var(--phosphor)"
                       : isHovered
-                        ? "var(--phosphor-dim)"
+                        ? "var(--text-soft)"
                         : "var(--muted)",
                   }}
                 >
@@ -269,12 +332,12 @@ export default function AppShell({
                       animate={{ opacity: 1 }}
                       exit={{ opacity: 0 }}
                       style={{
-                        ...styles.navLabel,
+                        ...S.navLabel,
                         color: isActive
                           ? "var(--phosphor)"
                           : isHovered
-                            ? "var(--phosphor-dim)"
-                            : "var(--muted)",
+                            ? "var(--text-soft)"
+                            : "var(--ghost)",
                       }}
                     >
                       {item.label}
@@ -287,72 +350,107 @@ export default function AppShell({
         </nav>
 
         <div style={{ flex: 1 }} />
+        <div style={S.divider} />
 
-        <div style={styles.divider} />
-
-        {/* User + logout */}
-        <div style={{ padding: "12px 8px" }}>
+        {/* User block + Logout */}
+        <div style={{ padding: "10px 8px 8px" }}>
           {!collapsed && user && (
-            <div style={styles.userBlock}>
-              <div style={styles.userAvatar}>
-                {(user.name || "U")[0].toUpperCase()}
+            <div style={S.userBlock}>
+              <div style={S.userAvatar}>
+                {(user.fullName || user.username || "U")[0].toUpperCase()}
               </div>
-              <div style={styles.userInfo}>
-                <span style={styles.userName}>{user.name || "OPERATOR"}</span>
-                <span style={styles.userRole}>
-                  {(user.role || "MEMBER").toUpperCase()}
+              <div style={S.userInfo}>
+                <span style={S.userName}>
+                  {(user.fullName || user.username || "OPERATOR")
+                    .toUpperCase()
+                    .slice(0, 14)}
+                </span>
+                <span style={{ ...S.userRole, color: roleColor }}>
+                  {roleLabel}
                 </span>
               </div>
             </div>
           )}
+
+          {/* LOGOUT — wired to onLogout prop with two-step confirm */}
           <button
+            onClick={handleLogoutClick}
+            onBlur={() => setLogoutConfirm(false)}
+            aria-label="Log out"
             style={{
-              ...styles.navItem,
+              ...S.navItem,
               justifyContent: collapsed ? "center" : "flex-start",
               marginTop: 4,
+              width: "100%",
+              ...(logoutConfirm
+                ? {
+                    background: "rgba(255,60,60,0.08)",
+                    borderColor: "rgba(255,60,60,0.25)",
+                    color: "var(--red)",
+                  }
+                : {}),
             }}
           >
-            <span style={styles.navIcon}>
+            <span
+              style={{
+                ...S.navIcon,
+                color: logoutConfirm ? "var(--red)" : "var(--ghost)",
+              }}
+            >
               <LogoutIcon />
             </span>
-            {!collapsed && <span style={styles.navLabel}>LOGOUT</span>}
+            <AnimatePresence>
+              {!collapsed && (
+                <motion.span
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  exit={{ opacity: 0 }}
+                  style={{
+                    ...S.navLabel,
+                    color: logoutConfirm ? "var(--red)" : "var(--ghost)",
+                  }}
+                >
+                  {logoutConfirm ? "CONFIRM?" : "LOGOUT"}
+                </motion.span>
+              )}
+            </AnimatePresence>
           </button>
         </div>
 
         {/* Collapse toggle */}
         <button
           onClick={() => setCollapsed(!collapsed)}
-          style={styles.collapseBtn}
-          title={collapsed ? "Expand" : "Collapse"}
+          aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          style={S.collapseBtn}
         >
-          <MenuIcon />
+          <CollapseIcon collapsed={collapsed} />
         </button>
       </motion.aside>
 
       {/* MAIN AREA */}
-      <div style={styles.main}>
+      <div style={S.main}>
         {/* Topbar */}
-        <header style={styles.topbar}>
-          <div style={styles.topbarLeft}>
-            <span style={styles.topbarCrumb}>
-              SYS://PROJECTCAMP/{activePage.toUpperCase()}
-            </span>
-            <span style={styles.topbarBlink}>▮</span>
+        <header style={S.topbar}>
+          <div style={S.topbarLeft}>
+            <span style={S.topbarCrumb}>SYS://PROJECTCAMP/</span>
+            <span style={S.topbarCrumbPage}>{crumbPage}</span>
+            <span style={S.topbarBlink}>▮</span>
           </div>
-          <div style={styles.topbarRight}>
-            <div style={styles.statusDot} />
-            <span style={styles.statusText}>SYSTEM ONLINE</span>
+          <div style={S.topbarRight}>
+            <div style={S.statusDot} />
+            <span style={S.statusText}>SYSTEM ONLINE</span>
           </div>
         </header>
 
-        {/* Content */}
-        <main style={styles.content}>{children}</main>
+        {/* Page content */}
+        <main style={S.content}>{children}</main>
       </div>
     </div>
   );
 }
 
-const styles = {
+// ─── Styles ───────────────────────────────────────────────────────────────────
+const S = {
   root: {
     display: "flex",
     height: "100vh",
@@ -362,14 +460,8 @@ const styles = {
     position: "relative",
     overflow: "hidden",
   },
-  scanlines: {
-    position: "fixed",
-    inset: 0,
-    background:
-      "repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,255,65,0.015) 2px, rgba(0,255,65,0.015) 4px)",
-    pointerEvents: "none",
-    zIndex: 9999,
-  },
+
+  // Sidebar
   sidebar: {
     background: "var(--surface)",
     borderRight: "1px solid var(--border)",
@@ -379,27 +471,50 @@ const styles = {
     position: "relative",
     overflow: "hidden",
   },
+
+  // Ambient signal bars
+  signalBars: {
+    position: "absolute",
+    bottom: 80,
+    right: 8,
+    display: "flex",
+    alignItems: "flex-end",
+    gap: 2,
+    height: 28,
+    opacity: 0.35,
+    pointerEvents: "none",
+  },
+  signalBar: {
+    width: 2,
+    background: "var(--phosphor)",
+    borderRadius: 1,
+    animation: "signal-bar 2s ease-in-out infinite",
+    boxShadow: "0 0 4px var(--phosphor)",
+  },
+
+  // Brand
   brand: {
     display: "flex",
     alignItems: "center",
     gap: 10,
-    padding: "20px 16px 16px",
+    padding: "18px 14px 14px",
   },
   brandLogo: {
-    width: 32,
-    height: 32,
+    width: 30,
+    height: 30,
     border: "1.5px solid var(--phosphor)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
-    boxShadow: "0 0 8px rgba(0,255,65,0.3)",
+    boxShadow: "0 0 8px rgba(0,255,65,0.25)",
   },
   brandLogoInner: {
     color: "var(--phosphor)",
-    fontSize: 14,
+    fontSize: 13,
     fontWeight: "bold",
     letterSpacing: 1,
+    fontFamily: "var(--font-display)",
   },
   brandText: {
     display: "flex",
@@ -410,64 +525,69 @@ const styles = {
   },
   brandName: {
     color: "var(--phosphor)",
-    fontSize: 13,
-    letterSpacing: 3,
-    fontWeight: "bold",
+    fontFamily: "var(--font-display)",
+    fontSize: 12,
+    letterSpacing: 4,
   },
   brandSub: {
-    color: "var(--muted)",
-    fontSize: 9,
-    letterSpacing: 4,
-    marginTop: 2,
+    color: "var(--ghost)",
+    fontFamily: "var(--font-mono)",
+    fontSize: 8,
+    letterSpacing: 5,
+    marginTop: 3,
   },
+
+  // Clock
   clock: {
-    padding: "0 16px 12px",
+    padding: "0 14px 12px",
     display: "flex",
     flexDirection: "column",
     gap: 2,
   },
   clockTime: {
     color: "var(--phosphor)",
-    fontSize: 18,
+    fontFamily: "var(--font-display)",
+    fontSize: 17,
     letterSpacing: 2,
-    fontWeight: "bold",
-    textShadow: "0 0 10px rgba(0,255,65,0.6)",
+    textShadow: "0 0 10px rgba(0,255,65,0.5)",
   },
   clockDate: {
     color: "var(--muted)",
+    fontFamily: "var(--font-mono)",
     fontSize: 9,
     letterSpacing: 2,
   },
-  divider: {
-    height: "1px",
-    background: "var(--border)",
-    margin: "0 8px",
-  },
+
+  divider: { height: 1, background: "var(--border)", margin: "0 8px" },
+
+  // Nav
   nav: {
     display: "flex",
     flexDirection: "column",
-    padding: "8px 8px",
+    padding: "8px",
     gap: 2,
   },
   navItem: {
     display: "flex",
     alignItems: "center",
-    gap: 10,
-    padding: "9px 10px",
+    gap: 9,
+    padding: "8px 10px",
     background: "none",
-    border: "none",
+    border: "1px solid transparent",
+    borderRadius: "var(--r-md)",
     cursor: "pointer",
     position: "relative",
     overflow: "hidden",
-    transition: "background 0.15s",
+    transition: "background 0.15s, border-color 0.15s",
     width: "100%",
     textAlign: "left",
   },
   navItemActive: {
-    background: "rgba(0,255,65,0.06)",
+    background: "rgba(0,255,65,0.05)",
+    borderColor: "rgba(0,255,65,0.1)",
   },
   navItemHover: {
-    background: "rgba(0,255,65,0.03)",
+    background: "rgba(0,255,65,0.025)",
   },
   activeBar: {
     position: "absolute",
@@ -477,6 +597,7 @@ const styles = {
     width: 2,
     background: "var(--phosphor)",
     boxShadow: "0 0 6px var(--phosphor)",
+    borderRadius: "0 1px 1px 0",
   },
   scanSweep: {
     position: "absolute",
@@ -485,7 +606,7 @@ const styles = {
     width: "30%",
     height: "100%",
     background:
-      "linear-gradient(90deg, transparent, rgba(0,255,65,0.08), transparent)",
+      "linear-gradient(90deg, transparent, rgba(0,255,65,0.07), transparent)",
     pointerEvents: "none",
   },
   navIcon: {
@@ -493,26 +614,29 @@ const styles = {
     display: "flex",
     alignItems: "center",
     transition: "color 0.15s",
+    width: 15,
   },
   navLabel: {
     fontSize: 10,
     letterSpacing: 2,
     fontWeight: "bold",
+    fontFamily: "var(--font-mono)",
     transition: "color 0.15s",
     whiteSpace: "nowrap",
   },
+
+  // User block
   userBlock: {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    padding: "8px 10px",
-    marginBottom: 4,
+    padding: "6px 10px 8px",
   },
   userAvatar: {
-    width: 28,
-    height: 28,
-    background: "rgba(0,255,65,0.15)",
-    border: "1px solid var(--phosphor)",
+    width: 26,
+    height: 26,
+    background: "rgba(0,255,65,0.1)",
+    border: "1px solid rgba(0,255,65,0.3)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
@@ -520,14 +644,17 @@ const styles = {
     fontSize: 11,
     fontWeight: "bold",
     flexShrink: 0,
+    fontFamily: "var(--font-mono)",
   },
   userInfo: {
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",
+    gap: 2,
   },
   userName: {
     color: "var(--text)",
+    fontFamily: "var(--font-mono)",
     fontSize: 10,
     letterSpacing: 1,
     whiteSpace: "nowrap",
@@ -535,21 +662,27 @@ const styles = {
     textOverflow: "ellipsis",
   },
   userRole: {
-    color: "var(--muted)",
+    fontFamily: "var(--font-mono)",
     fontSize: 8,
     letterSpacing: 2,
   },
+
+  // Collapse toggle
   collapseBtn: {
     position: "absolute",
-    bottom: 12,
+    bottom: 10,
     right: 8,
     background: "none",
     border: "none",
     cursor: "pointer",
-    color: "var(--muted)",
+    color: "var(--dim)",
     padding: 4,
     display: "flex",
+    transition: "color 0.15s",
+    borderRadius: "var(--r-sm)",
   },
+
+  // Main
   main: {
     flex: 1,
     display: "flex",
@@ -558,7 +691,7 @@ const styles = {
     minWidth: 0,
   },
   topbar: {
-    height: 48,
+    height: 46,
     borderBottom: "1px solid var(--border)",
     display: "flex",
     alignItems: "center",
@@ -570,17 +703,25 @@ const styles = {
   topbarLeft: {
     display: "flex",
     alignItems: "center",
-    gap: 8,
+    gap: 0,
   },
   topbarCrumb: {
-    color: "var(--phosphor-dim)",
+    color: "var(--ghost)",
+    fontFamily: "var(--font-mono)",
     fontSize: 10,
-    letterSpacing: 2,
+    letterSpacing: 1,
+  },
+  topbarCrumbPage: {
+    color: "var(--phosphor-dim)",
+    fontFamily: "var(--font-mono)",
+    fontSize: 10,
+    letterSpacing: 1,
   },
   topbarBlink: {
     color: "var(--phosphor)",
     fontSize: 10,
     animation: "blink 1s step-end infinite",
+    marginLeft: 4,
   },
   topbarRight: {
     display: "flex",
@@ -588,15 +729,16 @@ const styles = {
     gap: 8,
   },
   statusDot: {
-    width: 6,
-    height: 6,
+    width: 5,
+    height: 5,
     borderRadius: "50%",
     background: "var(--phosphor)",
     boxShadow: "0 0 6px var(--phosphor)",
-    animation: "pulse 2s ease-in-out infinite",
+    animation: "pulse-signal 2s ease-in-out infinite",
   },
   statusText: {
-    color: "var(--muted)",
+    color: "var(--ghost)",
+    fontFamily: "var(--font-mono)",
     fontSize: 9,
     letterSpacing: 2,
   },

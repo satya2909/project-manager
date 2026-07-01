@@ -19,7 +19,7 @@ import CreateProjectModal from "./components/ui/CreateProjectModal.jsx";
 // ── services ──────────────────────────────────────────────────────────────────
 import projectService from "./services/project.service.js";
 
-// ── boot screen ───────────────────────────────────────────────────────────────
+// ─── Boot screen ──────────────────────────────────────────────────────────────
 function BootScreen() {
   const [dots, setDots] = useState("");
   useEffect(() => {
@@ -42,7 +42,7 @@ function BootScreen() {
         </motion.div>
         <div style={A.bootLines}>
           <span style={A.bootTitle}>PROJECT CAMP</span>
-          <span style={A.bootSub}>INITIALIZING SYSTEM{dots}</span>
+          <span style={A.bootSub}>INITIALIZING{dots}</span>
         </div>
         <motion.div
           initial={{ scaleX: 0, opacity: 0 }}
@@ -55,8 +55,7 @@ function BootScreen() {
   );
 }
 
-// ── url token parser ──────────────────────────────────────────────────────────
-// Reads ?token=xxx or /verify-email/TOKEN style URLs without a router
+// ─── URL helpers (no React Router) ────────────────────────────────────────────
 function getUrlToken() {
   const params = new URLSearchParams(window.location.search);
   if (params.get("token")) return params.get("token");
@@ -74,12 +73,10 @@ function getUrlPage() {
   return null;
 }
 
-// ── unauthenticated router ────────────────────────────────────────────────────
+// ─── Unauthenticated router ───────────────────────────────────────────────────
 function AuthRouter() {
   const urlPage = getUrlPage();
   const urlToken = getUrlToken();
-
-  // If user lands on a token URL, show the right page immediately
   const [page, setPage] = useState(urlPage || "login");
   const [token] = useState(urlToken);
 
@@ -89,12 +86,9 @@ function AuthRouter() {
   };
 
   useEffect(() => {
-    const handlePopState = () => {
-      const currentPage = getUrlPage();
-      setPage(currentPage || "login");
-    };
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
+    const handlePop = () => setPage(getUrlPage() || "login");
+    window.addEventListener("popstate", handlePop);
+    return () => window.removeEventListener("popstate", handlePop);
   }, []);
 
   return (
@@ -105,25 +99,21 @@ function AuthRouter() {
             <LoginPage onNavigate={handleNavigate} />
           </motion.div>
         )}
-
         {page === "register" && (
           <motion.div key="register" {...fadeSlide}>
             <RegisterPage onNavigate={handleNavigate} />
           </motion.div>
         )}
-
         {page === "forgot-password" && (
           <motion.div key="forgot" {...fadeSlide}>
             <ForgotPasswordPage onNavigate={handleNavigate} />
           </motion.div>
         )}
-
         {page === "reset-password" && (
           <motion.div key="reset" {...fadeSlide}>
             <ResetPasswordPage token={token} onNavigate={handleNavigate} />
           </motion.div>
         )}
-
         {page === "verify-email" && (
           <motion.div key="verify" {...fadeSlide}>
             <VerifyEmailPage token={token} onNavigate={handleNavigate} />
@@ -134,25 +124,22 @@ function AuthRouter() {
   );
 }
 
-// ── authenticated app ─────────────────────────────────────────────────────────
+// ─── Authenticated app router ─────────────────────────────────────────────────
 function AppRouter() {
   const { user, logout } = useAuth();
 
   const getAppPageFromUrl = () => {
-    const path = window.location.pathname;
-    const parts = path.split("/").filter(Boolean);
+    const parts = window.location.pathname.split("/").filter(Boolean);
     if (parts[0] === "projects" && parts[1]) {
       return { page: "project", projectId: parts[1] };
     }
-    const validPages = ["dashboard", "projects", "tasks", "notes", "members"];
-    if (validPages.includes(parts[0])) {
-      return { page: parts[0], projectId: null };
-    }
+    const valid = ["dashboard", "projects", "tasks", "notes", "members"];
+    if (valid.includes(parts[0])) return { page: parts[0], projectId: null };
     return { page: "dashboard", projectId: null };
   };
 
-  const initialUrlInfo = getAppPageFromUrl();
-  const [activePage, setActivePage] = useState(initialUrlInfo.page);
+  const initialInfo = getAppPageFromUrl();
+  const [activePage, setActivePage] = useState(initialInfo.page);
   const [activeProject, setActiveProject] = useState(null);
   const [projects, setProjects] = useState([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
@@ -164,26 +151,24 @@ function AppRouter() {
       setProjectsLoading(true);
       try {
         const data = await projectService.listProjects();
-        const projectsList = data?.projects || [];
-        setProjects(projectsList);
-        
-        const urlInfo = getAppPageFromUrl();
-        if (urlInfo.page === "project" && urlInfo.projectId) {
-          const found = projectsList.find((p) => p._id === urlInfo.projectId);
+        const list = data?.projects ?? [];
+        setProjects(list);
+
+        const info = getAppPageFromUrl();
+        if (info.page === "project" && info.projectId) {
+          const found = list.find((p) => p._id === info.projectId);
           if (found) {
             setActiveProject(found);
           } else {
-            // If not in the preloaded list, attempt to fetch it directly from the API
             try {
-              const projectData = await projectService.getProject(urlInfo.projectId);
-              if (projectData?.project) {
-                setActiveProject(projectData.project);
+              const pd = await projectService.getProject(info.projectId);
+              if (pd?.project) {
+                setActiveProject(pd.project);
               } else {
                 setActivePage("dashboard");
                 window.history.replaceState({}, "", "/dashboard");
               }
-            } catch (err) {
-              console.error("Project direct fetch failed", err);
+            } catch {
               setActivePage("dashboard");
               window.history.replaceState({}, "", "/dashboard");
             }
@@ -207,11 +192,9 @@ function AppRouter() {
 
   const handleCreateProject = async (payload) => {
     const data = await projectService.createProject(payload);
-    const createdProject = data?.project;
-    if (createdProject) {
-      setProjects((p) => [createdProject, ...p]);
-    }
-    return createdProject;
+    const created = data?.project;
+    if (created) setProjects((prev) => [created, ...prev]);
+    return created;
   };
 
   const handleOpenProject = (project) => {
@@ -233,21 +216,21 @@ function AppRouter() {
   };
 
   useEffect(() => {
-    const handlePopState = () => {
-      const urlInfo = getAppPageFromUrl();
-      if (urlInfo.page === "project" && urlInfo.projectId) {
-        const found = projects.find((p) => p._id === urlInfo.projectId);
+    const handlePop = () => {
+      const info = getAppPageFromUrl();
+      if (info.page === "project" && info.projectId) {
+        const found = projects.find((p) => p._id === info.projectId);
         if (found) {
           setActiveProject(found);
           setActivePage("project");
         }
       } else {
         setActiveProject(null);
-        setActivePage(urlInfo.page);
+        setActivePage(info.page);
       }
     };
-    window.addEventListener("popstate", handlePopState);
-    return () => window.removeEventListener("popstate", handlePopState);
+    window.addEventListener("popstate", handlePop);
+    return () => window.removeEventListener("popstate", handlePop);
   }, [projects]);
 
   const renderPage = () => {
@@ -256,7 +239,6 @@ function AppRouter() {
         <ProjectPage project={activeProject} onBack={handleBackToDashboard} />
       );
     }
-
     switch (activePage) {
       case "dashboard":
       case "projects":
@@ -294,11 +276,22 @@ function AppRouter() {
 
   return (
     <>
+      {/* ─────────────────────────────────────────────────────────────────────
+          AppShell now receives ALL required props:
+            activePage         — highlights the correct nav item
+            activeProjectName  — shown in topbar breadcrumb
+            onNavigate         — changes page without full reload
+            onLogout           — ← was missing; now wired to auth logout()
+            user               — for avatar initial and role badge
+         ───────────────────────────────────────────────────────────────────── */}
       <AppShell
         activePage={activePage === "project" ? "projects" : activePage}
+        activeProjectName={
+          activePage === "project" ? activeProject?.name : null
+        }
         onNavigate={handleNavigate}
+        onLogout={logout} /* ← THE FIX */
         user={user}
-        onLogout={logout}
       >
         <AnimatePresence mode="wait">
           <motion.div
@@ -323,7 +316,7 @@ function AppRouter() {
   );
 }
 
-// ── auth guard ────────────────────────────────────────────────────────────────
+// ─── Auth guard ───────────────────────────────────────────────────────────────
 function AuthGuard({ children }) {
   const { isAuthenticated, loading } = useAuth();
   if (loading) return <BootScreen />;
@@ -331,12 +324,12 @@ function AuthGuard({ children }) {
   return children;
 }
 
-// ── placeholder ───────────────────────────────────────────────────────────────
+// ─── Placeholder pages ────────────────────────────────────────────────────────
 function PlaceholderPage({ label, sub }) {
   return (
     <div style={A.placeholder}>
       <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
+        initial={{ opacity: 0, scale: 0.96 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.3 }}
         style={A.placeholderInner}
@@ -349,19 +342,19 @@ function PlaceholderPage({ label, sub }) {
   );
 }
 
-// ── root ──────────────────────────────────────────────────────────────────────
+// ─── Root ─────────────────────────────────────────────────────────────────────
 export default function App() {
   return (
-    <>
-      <style>{GLOBAL_CSS}</style>
-      <AuthGuard>
-        <AppRouter />
-      </AuthGuard>
-    </>
+    // No inline GLOBAL_CSS block — index.css is the single source of truth now.
+    // The vars previously defined inline (--phosphor, --bg, --surface, etc.)
+    // are all declared in index.css so every component resolves them correctly.
+    <AuthGuard>
+      <AppRouter />
+    </AuthGuard>
   );
 }
 
-// ── animation preset ──────────────────────────────────────────────────────────
+// ─── Animation preset ─────────────────────────────────────────────────────────
 const fadeSlide = {
   initial: { opacity: 0, y: 12 },
   animate: { opacity: 1, y: 0 },
@@ -369,49 +362,8 @@ const fadeSlide = {
   transition: { duration: 0.22, ease: [0.4, 0, 0.2, 1] },
 };
 
-// ── global CSS ────────────────────────────────────────────────────────────────
-const GLOBAL_CSS = `
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  :root {
-    --phosphor:       #00ff41;
-    --phosphor-dim:   #00cc33;
-    --amber:          #ffaa00;
-    --red:            #ff3c3c;
-    --bg:             #0a0c0a;
-    --surface:        #0f120f;
-    --surface-raised: #141814;
-    --border:         #1e241e;
-    --text:           #d4e8d4;
-    --muted:          #4a5c4a;
-    --font-mono:      'JetBrains Mono', 'Fira Code', 'Courier New', monospace;
-    --font-display:   'Share Tech Mono', 'JetBrains Mono', monospace;
-  }
-
-  html, body, #root {
-    height: 100%; width: 100%;
-    background: var(--bg);
-    color: var(--text);
-    font-family: var(--font-mono);
-    overflow: hidden;
-  }
-
-  ::-webkit-scrollbar        { width: 4px; height: 4px; }
-  ::-webkit-scrollbar-track  { background: var(--bg); }
-  ::-webkit-scrollbar-thumb  { background: var(--border); }
-  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
-
-  @keyframes blink   { 0%,100%{opacity:1}50%{opacity:0} }
-  @keyframes pulse   { 0%,100%{opacity:1}50%{opacity:0.4} }
-  @keyframes spin    { to{transform:rotate(360deg)} }
-  @keyframes shimmer { 0%{transform:translateX(-100%)}100%{transform:translateX(200%)} }
-
-  @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700&family=Share+Tech+Mono&display=swap');
-
-  button { font-family: var(--font-mono); }
-`;
-
-// ── styles ────────────────────────────────────────────────────────────────────
+// ─── Styles ───────────────────────────────────────────────────────────────────
+// These use CSS variables defined in index.css — no duplication.
 const A = {
   boot: {
     height: "100vh",
@@ -428,17 +380,16 @@ const A = {
     gap: 20,
   },
   bootLogo: {
-    width: 64,
-    height: 64,
+    width: 62,
+    height: 62,
     border: "2px solid var(--phosphor)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     color: "var(--phosphor)",
     fontFamily: "var(--font-display)",
-    fontSize: 28,
-    fontWeight: "bold",
-    boxShadow: "0 0 30px rgba(0,255,65,0.3)",
+    fontSize: 26,
+    boxShadow: "0 0 28px rgba(0,255,65,0.25)",
   },
   bootLines: {
     display: "flex",
@@ -449,11 +400,11 @@ const A = {
   bootTitle: {
     color: "var(--text)",
     fontFamily: "var(--font-display)",
-    fontSize: 18,
+    fontSize: 17,
     letterSpacing: 6,
   },
   bootSub: {
-    color: "var(--muted)",
+    color: "var(--ghost)",
     fontFamily: "var(--font-mono)",
     fontSize: 9,
     letterSpacing: 3,
@@ -480,7 +431,7 @@ const A = {
   },
   placeholderLabel: {
     fontFamily: "var(--font-display)",
-    fontSize: 32,
+    fontSize: 30,
     letterSpacing: 6,
     color: "var(--text)",
   },
@@ -488,13 +439,13 @@ const A = {
     fontFamily: "var(--font-mono)",
     fontSize: 9,
     letterSpacing: 3,
-    color: "var(--muted)",
+    color: "var(--ghost)",
   },
   placeholderRule: {
     width: 60,
     height: 1,
     background: "var(--phosphor)",
-    opacity: 0.4,
+    opacity: 0.35,
     marginTop: 8,
   },
 };

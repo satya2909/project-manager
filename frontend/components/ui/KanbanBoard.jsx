@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -30,7 +30,17 @@ const COLUMN_COLORS = {
   done: "var(--phosphor)",
 };
 
-function DroppableColumn({ column, tasks, activeId, onTaskClick }) {
+// ─── group helper ─────────────────────────────────────────────────────────────
+function groupByStatus(tasks = []) {
+  const grouped = { todo: [], in_progress: [], done: [] };
+  tasks.forEach((t) => {
+    if (grouped[t.status]) grouped[t.status].push(t);
+  });
+  return grouped;
+}
+
+// ─── DroppableColumn ──────────────────────────────────────────────────────────
+function DroppableColumn({ column, tasks, onTaskClick }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
   const taskIds = tasks.map((t) => t._id);
 
@@ -39,7 +49,13 @@ function DroppableColumn({ column, tasks, activeId, onTaskClick }) {
       animate={{
         borderColor: isOver ? COLUMN_COLORS[column.id] : "var(--border)",
         boxShadow: isOver
-          ? `0 0 20px ${column.id === "todo" ? "rgba(120,120,120,0.15)" : column.id === "in_progress" ? "rgba(255,170,0,0.15)" : "rgba(0,255,65,0.15)"}`
+          ? `0 0 20px ${
+              column.id === "todo"
+                ? "rgba(120,120,120,0.15)"
+                : column.id === "in_progress"
+                  ? "rgba(255,170,0,0.15)"
+                  : "rgba(0,255,65,0.15)"
+            }`
           : "none",
       }}
       transition={{ duration: 0.15 }}
@@ -48,10 +64,8 @@ function DroppableColumn({ column, tasks, activeId, onTaskClick }) {
         borderColor: isOver ? COLUMN_COLORS[column.id] : "var(--border)",
       }}
     >
-      {/* Column header with phosphor sweep */}
       <ColumnHeader column={column} count={tasks.length} isOver={isOver} />
 
-      {/* Drop zone */}
       <div ref={setNodeRef} style={colStyles.dropZone}>
         <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
           <AnimatePresence>
@@ -69,9 +83,7 @@ function DroppableColumn({ column, tasks, activeId, onTaskClick }) {
           </AnimatePresence>
 
           {tasks.length === 0 && (
-            <div
-              style={{ ...colStyles.emptyState, opacity: isOver ? 0.8 : 0.3 }}
-            >
+            <div style={{ ...colStyles.emptyState, opacity: isOver ? 0.8 : 0.3 }}>
               <div style={colStyles.emptyIcon}>◫</div>
               <span>DROP TASKS HERE</span>
             </div>
@@ -82,6 +94,7 @@ function DroppableColumn({ column, tasks, activeId, onTaskClick }) {
   );
 }
 
+// ─── ColumnHeader ─────────────────────────────────────────────────────────────
 function ColumnHeader({ column, count, isOver }) {
   const [hovered, setHovered] = useState(false);
   const showSweep = hovered || isOver;
@@ -113,7 +126,6 @@ function ColumnHeader({ column, count, isOver }) {
         {String(count).padStart(2, "0")}
       </span>
 
-      {/* Phosphor sweep on hover */}
       {showSweep && (
         <motion.div
           key="sweep"
@@ -127,21 +139,29 @@ function ColumnHeader({ column, count, isOver }) {
   );
 }
 
+// ─── KanbanBoard ──────────────────────────────────────────────────────────────
 export default function KanbanBoard({
   tasks = [],
   onTaskMove,
   onTaskClick,
   onCreateTask,
 }) {
-  const [items, setItems] = useState(() => {
-    const grouped = { todo: [], in_progress: [], done: [] };
-    tasks.forEach((t) => {
-      if (grouped[t.status]) grouped[t.status].push(t);
-    });
-    return grouped;
-  });
-
+  const [items, setItems] = useState(() => groupByStatus(tasks));
   const [activeTask, setActiveTask] = useState(null);
+
+  // Guard: don't sync from props while a drag is in progress — it would
+  // teleport the card back to its original column mid-gesture.
+  const isDragging = useRef(false);
+
+  // ── THE FIX: sync items whenever the tasks prop changes ───────────────────
+  // This is what was missing. The original lazy useState initialiser only ran
+  // once at mount, so when useTasks resolved asynchronously the board stayed
+  // empty forever. useEffect with [tasks] re-groups on every tasks update,
+  // but only when no drag is active (isDragging guard).
+  useEffect(() => {
+    if (isDragging.current) return;
+    setItems(groupByStatus(tasks));
+  }, [tasks]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -152,14 +172,15 @@ export default function KanbanBoard({
 
   const findColumnOfTask = useCallback(
     (taskId) => {
-      return Object.entries(items).find(([, tasks]) =>
-        tasks.some((t) => t._id === taskId),
+      return Object.entries(items).find(([, ts]) =>
+        ts.some((t) => t._id === taskId),
       )?.[0];
     },
     [items],
   );
 
   const handleDragStart = ({ active }) => {
+    isDragging.current = true;
     const colId = findColumnOfTask(active.id);
     if (colId) {
       const task = items[colId].find((t) => t._id === active.id);
@@ -183,13 +204,15 @@ export default function KanbanBoard({
       const [moved] = sourceItems.splice(taskIndex, 1);
       const updatedTask = { ...moved, status: toCol };
       destItems.push(updatedTask);
-
       return { ...prev, [fromCol]: sourceItems, [toCol]: destItems };
     });
   };
 
   const handleDragEnd = ({ active, over }) => {
+    // Mark drag as finished — future tasks prop updates can now sync again
+    isDragging.current = false;
     setActiveTask(null);
+
     if (!over) return;
 
     const fromCol = findColumnOfTask(active.id);
@@ -207,18 +230,26 @@ export default function KanbanBoard({
         if (oldIdx === -1 || newIdx === -1) return prev;
         return { ...prev, [fromCol]: arrayMove(col, oldIdx, newIdx) };
       });
+      return;
     }
 
-    // Notify parent with optimistic update done
+    // Cross-column move: notify parent so it can persist the status change
     const movedTask = Object.values(items)
       .flat()
       .find((t) => t._id === active.id);
+
     if (movedTask && toCol !== movedTask.status) {
       onTaskMove?.(active.id, toCol);
     }
   };
 
-  // Flatten for counts
+  const handleDragCancel = () => {
+    // Drag cancelled (e.g. Escape key): release the guard and re-sync
+    isDragging.current = false;
+    setActiveTask(null);
+    setItems(groupByStatus(tasks));
+  };
+
   const totalTasks = Object.values(items).flat().length;
 
   return (
@@ -241,6 +272,7 @@ export default function KanbanBoard({
         onDragStart={handleDragStart}
         onDragOver={handleDragOver}
         onDragEnd={handleDragEnd}
+        onDragCancel={handleDragCancel}
       >
         <div style={boardStyles.grid}>
           {COLUMNS.map((col) => (
@@ -248,7 +280,6 @@ export default function KanbanBoard({
               key={col.id}
               column={col}
               tasks={items[col.id] || []}
-              activeId={activeTask?._id}
               onTaskClick={onTaskClick}
             />
           ))}
@@ -266,6 +297,7 @@ export default function KanbanBoard({
   );
 }
 
+// ─── styles ───────────────────────────────────────────────────────────────────
 const boardStyles = {
   root: {
     display: "flex",

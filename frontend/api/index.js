@@ -81,7 +81,7 @@ api.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null);
         clearAccessToken();
-        return Promise.reject(refreshError);
+        return Promise.reject(originalRequestnet);
       } finally {
         isRefreshing = false;
       }
