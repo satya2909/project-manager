@@ -140,6 +140,7 @@ const cardStyles = {
   card: {
     background: "var(--surface-raised)",
     border: "1px solid var(--border)",
+    borderRadius: "var(--r-md)",
     padding: "0 0 12px",
     marginBottom: 8,
     position: "relative",

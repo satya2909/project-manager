@@ -330,6 +330,7 @@ const boardStyles = {
   addBtn: {
     background: "rgba(0,255,65,0.08)",
     border: "1px solid var(--phosphor)",
+    borderRadius: "var(--r-md)",
     color: "var(--phosphor)",
     fontFamily: "var(--font-mono)",
     fontSize: 10,
@@ -351,6 +352,7 @@ const boardStyles = {
 const colStyles = {
   column: {
     background: "var(--surface)",
+    borderRadius: "var(--r-md)",
     border: "1px solid var(--border)",
     display: "flex",
     flexDirection: "column",

@@ -480,6 +480,7 @@ const S = {
   newProjectBtn: {
     background: "rgba(0,255,65,0.08)",
     border: "1px solid var(--phosphor)",
+    borderRadius: "var(--r-md)",
     color: "var(--phosphor)",
     fontFamily: "var(--font-mono)",
     fontSize: 10,
@@ -499,6 +500,7 @@ const S = {
   statCard: {
     background: "var(--surface)",
     border: "1px solid var(--border)",
+    borderRadius: "var(--r-md)",
     padding: "18px 20px",
     display: "flex",
     flexDirection: "column",
@@ -579,6 +581,7 @@ const S = {
   projCard: {
     background: "var(--surface)",
     border: "1px solid var(--border)",
+    borderRadius: "var(--r-md)",
     transition: "border-color 0.2s, box-shadow 0.2s",
     overflow: "hidden",
   },
@@ -627,10 +630,12 @@ const S = {
     flex: 1,
     height: 2,
     background: "var(--border)",
+    borderRadius: 1,
     overflow: "hidden",
   },
   progFill: {
     height: "100%",
+    borderRadius: 1,
   },
   progLabel: {
     fontFamily: "var(--font-mono)",
@@ -656,6 +661,7 @@ const S = {
   activityPanel: {
     background: "var(--surface)",
     border: "1px solid var(--border)",
+    borderRadius: "var(--r-md)",
     display: "flex",
     flexDirection: "column",
     overflow: "hidden",

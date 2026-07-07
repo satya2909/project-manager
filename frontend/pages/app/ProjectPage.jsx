@@ -458,6 +458,7 @@ const PS = {
     background: "var(--surface)",
     border: "1px solid var(--border)",
     padding: "16px",
+    borderRadius: "var(--r-lg)",
     display: "flex",
     alignItems: "flex-start",
     gap: 14,
@@ -498,6 +499,7 @@ const PS = {
     letterSpacing: 2,
     border: "1px solid",
     padding: "2px 6px",
+    borderRadius: "var(--r-sm)",
   },
   memberJoined: {
     color: "var(--muted)",
@@ -513,7 +515,7 @@ const PS = {
   },
   noteCard: {
     background: "var(--surface)",
-    border: "1px solid",
+    border: "1px solid var(--border)",
     overflow: "hidden",
     transition: "border-color 0.15s",
   },
@@ -561,6 +563,7 @@ const PS = {
   skeletonCard: {
     background: "var(--surface)",
     border: "1px solid var(--border)",
+    borderRadius: "var(--r-lg)",
     padding: 16,
   },
   skeletonLine: {
@@ -598,6 +601,7 @@ const PS = {
   retryBtn: {
     background: "none",
     border: "1px solid var(--border)",
+    borderRadius: "var(--r-md)",
     color: "var(--muted)",
     fontFamily: "var(--font-mono)",
     fontSize: 9,
