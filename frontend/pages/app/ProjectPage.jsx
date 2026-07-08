@@ -5,6 +5,7 @@ import CreateTaskModal from "../../components/ui/CreateTaskModal.jsx";
 import TaskDetailDrawer from "../../components/ui/TaskDetailDrawer.jsx";
 import { useTasks, useMembers, useNotes } from "../../hooks/index.js";
 import { useAuth } from "../../context/authcontext.jsx";
+import MembersPanel from "../../components/ui/MembersPanel.jsx";
 
 // ── role badge ────────────────────────────────────────────────────────────────
 const ROLE_CFG = {
@@ -48,73 +49,15 @@ function ErrorState({ message, onRetry }) {
 
 // ── members tab ───────────────────────────────────────────────────────────────
 function MembersTab({ projectId }) {
-  const { members, loading, error, refetch } = useMembers(projectId);
-
-  if (loading)
-    return (
-      <div style={PS.tabContent}>
-        <div style={PS.memberGrid}>
-          {[...Array(4)].map((_, i) => (
-            <SkeletonCard key={i} />
-          ))}
-        </div>
-      </div>
-    );
-  if (error)
-    return (
-      <div style={PS.tabContent}>
-        <ErrorState message={error} onRetry={refetch} />
-      </div>
-    );
-
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      style={PS.tabContent}
+      style={{ ...PS.tabContent, overflowY: "auto" }}
     >
-      <div style={PS.memberGrid}>
-        {members.map((m, i) => {
-          const user = m.user || m;
-          const name = user.fullName || user.username || "Unknown";
-          return (
-            <motion.div
-              key={user._id}
-              initial={{ opacity: 0, y: 16 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.25, delay: i * 0.06 }}
-              style={PS.memberCard}
-            >
-              <div style={PS.memberAvatar}>{name[0].toUpperCase()}</div>
-              <div style={PS.memberInfo}>
-                <span style={PS.memberName}>{name.toUpperCase()}</span>
-                <span style={PS.memberEmail}>{user.email}</span>
-                <div style={PS.memberMeta}>
-                  <RoleBadge role={m.role} />
-                  <span style={PS.memberJoined}>
-                    JOINED{" "}
-                    {new Date(user.createdAt)
-                      .toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "2-digit",
-                        year: "numeric",
-                      })
-                      .toUpperCase()}
-                  </span>
-                </div>
-              </div>
-            </motion.div>
-          );
-        })}
-        {members.length === 0 && (
-          <div style={PS.emptyState}>
-            <span style={PS.emptyIcon}>◈</span>
-            <span>NO MEMBERS FOUND</span>
-          </div>
-        )}
-      </div>
+      <MembersPanel projectId={projectId} />
     </motion.div>
   );
 }
