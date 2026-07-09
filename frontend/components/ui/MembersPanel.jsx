@@ -73,9 +73,11 @@ export default function MembersPanel({ projectId }) {
       setLoading(true);
       setError("");
       const data = await projectService.listMembers(projectId);
-      setMembers(Array.isArray(data) ? data : []);
+      console.log("raw listMembers response:", data);
+      setMembers(data?.members ?? []);
     } catch (e) {
       setError(e?.response?.data?.message || "Failed to load members.");
+      console.log("listMembers error:", e?.response);
     } finally {
       setLoading(false);
     }
@@ -90,6 +92,7 @@ export default function MembersPanel({ projectId }) {
     setToast({ msg, ok });
     setTimeout(() => setToast({ msg: "", ok: true }), 3000);
   };
+    
 
   // ── add member ───────────────────────────────────────────────────────
   const handleAdd = async () => {
@@ -156,7 +159,10 @@ export default function MembersPanel({ projectId }) {
       setRemoving((r) => ({ ...r, [userId]: false }));
     }
   };
-
+  console.log("members", members);
+  console.log("user", user);
+  console.log("myRole", myRole);
+  console.log("isAdmin", isAdmin);
   // ── render ────────────────────────────────────────────────────────────
   return (
     <div style={S.wrap}>
