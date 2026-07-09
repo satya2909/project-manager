@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import taskService from "../../services/task.service.js";
 
@@ -144,6 +144,101 @@ function SubtaskRow({ subtask, projectId, onToggle, onDelete, canManage }) {
   );
 }
 
+// ── add subtask inline input ──────────────────────────────────────────────────
+function AddSubtaskInput({ projectId, taskId, onAdded }) {
+  const [active, setActive] = useState(false);
+  const [value, setValue] = useState("");
+  const [loading, setLoading] = useState(false);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (active) setTimeout(() => inputRef.current?.focus(), 60);
+  }, [active]);
+
+  const commit = async () => {
+    const title = value.trim();
+    if (!title) {
+      setActive(false);
+      setValue("");
+      return;
+    }
+    setLoading(true);
+    try {
+      const newSt = await taskService.createSubtask(projectId, taskId, {
+        title,
+      });
+      onAdded(newSt);
+      setValue("");
+      // keep input open for rapid multi-add
+      setTimeout(() => inputRef.current?.focus(), 40);
+    } catch (e) {
+      console.error("Add subtask failed", e);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const cancel = () => {
+    setValue("");
+    setActive(false);
+  };
+
+  if (!active) {
+    return (
+      <button onClick={() => setActive(true)} style={D.addSubtaskTrigger}>
+        <span style={D.addSubtaskPlus}>+</span>
+        ADD SUBTASK
+      </button>
+    );
+  }
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -4 }}
+      animate={{ opacity: 1, y: 0 }}
+      style={D.addSubtaskRow}
+    >
+      <span
+        style={{
+          ...D.checkBox,
+          borderColor: "var(--border)",
+          color: "transparent",
+          flexShrink: 0,
+        }}
+      >
+        {" "}
+      </span>
+      <input
+        ref={inputRef}
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") commit();
+          if (e.key === "Escape") cancel();
+        }}
+        placeholder="SUBTASK TITLE..."
+        disabled={loading}
+        style={D.addSubtaskInput}
+        maxLength={120}
+      />
+      <button
+        onClick={commit}
+        disabled={loading || !value.trim()}
+        style={{
+          ...D.addSubtaskConfirm,
+          opacity: value.trim() && !loading ? 1 : 0.35,
+        }}
+        title="Add (Enter)"
+      >
+        {loading ? "◌" : "✓"}
+      </button>
+      <button onClick={cancel} style={D.subtaskDel} title="Cancel (Escape)">
+        ✕
+      </button>
+    </motion.div>
+  );
+}
+
 // ── main drawer ───────────────────────────────────────────────────────────────
 export default function TaskDetailDrawer({
   task,
@@ -217,6 +312,13 @@ export default function TaskDetailDrawer({
     setLocalTask((t) => ({
       ...t,
       subTasks: t.subTasks.filter((s) => s._id !== subId),
+    }));
+  };
+
+  const handleSubtaskAdd = (newSubtask) => {
+    setLocalTask((t) => ({
+      ...t,
+      subTasks: [...(t.subTasks || []), newSubtask],
     }));
   };
 
@@ -487,7 +589,7 @@ export default function TaskDetailDrawer({
                   ))}
                 </AnimatePresence>
 
-                {totalCount === 0 && (
+                {totalCount === 0 && !canManage && (
                   <span
                     style={{
                       color: "var(--muted)",
@@ -497,6 +599,14 @@ export default function TaskDetailDrawer({
                   >
                     NO SUBTASKS
                   </span>
+                )}
+
+                {canManage && (
+                  <AddSubtaskInput
+                    projectId={projectId}
+                    taskId={localTask._id}
+                    onAdded={handleSubtaskAdd}
+                  />
                 )}
               </div>
 
@@ -753,6 +863,60 @@ const D = {
     padding: 2,
     opacity: 0.6,
     flexShrink: 0,
+  },
+
+  // Add subtask
+  addSubtaskTrigger: {
+    display: "flex",
+    alignItems: "center",
+    gap: 7,
+    background: "none",
+    border: "1px dashed var(--border)",
+    color: "var(--muted)",
+    fontFamily: "var(--font-mono)",
+    fontSize: 9,
+    letterSpacing: 2,
+    padding: "6px 10px",
+    cursor: "pointer",
+    marginTop: 6,
+    width: "100%",
+    transition: "border-color 0.15s, color 0.15s",
+  },
+  addSubtaskPlus: {
+    color: "var(--phosphor)",
+    fontSize: 12,
+    lineHeight: 1,
+    flexShrink: 0,
+  },
+  addSubtaskRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 6,
+    padding: "4px 0",
+  },
+  addSubtaskInput: {
+    flex: 1,
+    background: "var(--bg)",
+    border: "1px solid var(--phosphor-dim)",
+    color: "var(--text)",
+    fontFamily: "var(--font-mono)",
+    fontSize: 10,
+    letterSpacing: 0.5,
+    padding: "5px 8px",
+    outline: "none",
+    boxSizing: "border-box",
+  },
+  addSubtaskConfirm: {
+    background: "none",
+    border: "none",
+    color: "var(--phosphor)",
+    cursor: "pointer",
+    fontSize: 11,
+    padding: 2,
+    flexShrink: 0,
+    fontFamily: "var(--font-mono)",
+    transition: "opacity 0.15s",
   },
 
   // Attachments

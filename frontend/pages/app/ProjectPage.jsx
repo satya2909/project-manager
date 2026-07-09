@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import KanbanBoard from "../../components/ui/KanbanBoard.jsx";
 import CreateTaskModal from "../../components/ui/CreateTaskModal.jsx";
@@ -47,6 +47,55 @@ function ErrorState({ message, onRetry }) {
   );
 }
 
+// ── project stats strip ───────────────────────────────────────────────────────
+function ProjectStats({ project, tasks, members }) {
+  const total = tasks.length;
+  const done = tasks.filter((t) => t.status === "done").length;
+  const inProgress = tasks.filter((t) => t.status === "in_progress").length;
+  const pct = total > 0 ? Math.round((done / total) * 100) : 0;
+
+  const stats = [
+    { label: "MEMBERS", value: members.length, color: "var(--phosphor)" },
+    { label: "TOTAL TASKS", value: total, color: "var(--text)" },
+    { label: "IN PROGRESS", value: inProgress, color: "var(--amber)" },
+    { label: "COMPLETED", value: done, color: "var(--phosphor)" },
+  ];
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -6 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, delay: 0.1 }}
+      style={PS.statsStrip}
+    >
+      {stats.map((s, i) => (
+        <div key={s.label} style={PS.statItem}>
+          <span style={{ ...PS.statValue, color: s.color }}>{s.value}</span>
+          <span style={PS.statLabel}>{s.label}</span>
+          {i < stats.length - 1 && <div style={PS.statDivider} />}
+        </div>
+      ))}
+
+      {/* completion bar */}
+      <div style={PS.completionWrap}>
+        <div style={PS.completionTrack}>
+          <motion.div
+            initial={{ width: 0 }}
+            animate={{ width: `${pct}%` }}
+            transition={{ duration: 0.6, ease: "easeOut" }}
+            style={{
+              ...PS.completionFill,
+              background: pct === 100 ? "var(--phosphor)" : "var(--amber)",
+              boxShadow: pct === 100 ? "0 0 6px var(--phosphor)" : "none",
+            }}
+          />
+        </div>
+        <span style={PS.completionPct}>{pct}%</span>
+      </div>
+    </motion.div>
+  );
+}
+
 // ── members tab ───────────────────────────────────────────────────────────────
 function MembersTab({ projectId }) {
   return (
@@ -62,10 +111,152 @@ function MembersTab({ projectId }) {
   );
 }
 
+// ── create / edit note form ───────────────────────────────────────────────────
+function NoteForm({ initial = null, onSave, onCancel, saving }) {
+  const [title, setTitle] = useState(initial?.title || "");
+  const [content, setContent] = useState(initial?.content || "");
+  const titleRef = useRef(null);
+
+  useEffect(() => {
+    setTimeout(() => titleRef.current?.focus(), 80);
+  }, []);
+
+  const canSubmit = title.trim().length >= 2 && content.trim().length >= 2;
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: -8 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -4 }}
+      transition={{ duration: 0.18 }}
+      style={PS.noteForm}
+    >
+      {/* corner brackets */}
+      <div
+        style={{
+          ...PS.corner,
+          top: -1,
+          left: -1,
+          borderTop: "2px solid var(--phosphor)",
+          borderLeft: "2px solid var(--phosphor)",
+        }}
+      />
+      <div
+        style={{
+          ...PS.corner,
+          top: -1,
+          right: -1,
+          borderTop: "2px solid var(--phosphor)",
+          borderRight: "2px solid var(--phosphor)",
+        }}
+      />
+      <div
+        style={{
+          ...PS.corner,
+          bottom: -1,
+          left: -1,
+          borderBottom: "2px solid var(--phosphor)",
+          borderLeft: "2px solid var(--phosphor)",
+        }}
+      />
+      <div
+        style={{
+          ...PS.corner,
+          bottom: -1,
+          right: -1,
+          borderBottom: "2px solid var(--phosphor)",
+          borderRight: "2px solid var(--phosphor)",
+        }}
+      />
+
+      <div style={PS.noteFormHeader}>
+        <span style={PS.noteFormLabel}>
+          {initial ? "EDIT NOTE" : "NEW NOTE"}
+        </span>
+      </div>
+
+      <input
+        ref={titleRef}
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        placeholder="NOTE TITLE..."
+        style={PS.noteFormInput}
+        maxLength={120}
+      />
+      <textarea
+        value={content}
+        onChange={(e) => setContent(e.target.value)}
+        placeholder="NOTE CONTENT..."
+        rows={5}
+        style={{ ...PS.noteFormInput, ...PS.noteFormTextarea }}
+        maxLength={2000}
+      />
+      <div style={PS.noteFormFooter}>
+        <span style={PS.noteFormCount}>{content.length}/2000</span>
+        <div style={{ display: "flex", gap: 8 }}>
+          <button
+            onClick={onCancel}
+            style={PS.noteFormCancel}
+            disabled={saving}
+          >
+            ABORT
+          </button>
+          <button
+            onClick={() =>
+              canSubmit &&
+              onSave({ title: title.trim(), content: content.trim() })
+            }
+            style={{
+              ...PS.noteFormSave,
+              opacity: canSubmit && !saving ? 1 : 0.4,
+              cursor: canSubmit && !saving ? "pointer" : "not-allowed",
+            }}
+            disabled={!canSubmit || saving}
+          >
+            {saving ? "◌ SAVING..." : initial ? "SAVE CHANGES" : "POST NOTE"}
+          </button>
+        </div>
+      </div>
+    </motion.div>
+  );
+}
+
 // ── notes tab ─────────────────────────────────────────────────────────────────
-function NotesTab({ projectId }) {
-  const { notes, loading, error, refetch } = useNotes(projectId);
+function NotesTab({ projectId, canAdmin }) {
+  const { notes, loading, error, refetch, createNote, updateNote, deleteNote } =
+    useNotes(projectId);
+
   const [expanded, setExpanded] = useState(null);
+  const [showCreate, setShowCreate] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+
+  const handleCreate = async (payload) => {
+    setSaving(true);
+    const result = await createNote(payload);
+    setSaving(false);
+    if (result?.success !== false) {
+      setShowCreate(false);
+    }
+  };
+
+  const handleEdit = async (noteId, payload) => {
+    setSaving(true);
+    const result = await updateNote(noteId, payload);
+    setSaving(false);
+    if (result?.success !== false) {
+      setEditingId(null);
+    }
+  };
+
+  const handleDelete = async (noteId) => {
+    if (!window.confirm("DELETE THIS NOTE? THIS CANNOT BE UNDONE.")) return;
+    setDeletingId(noteId);
+    await deleteNote(noteId);
+    setDeletingId(null);
+    if (expanded === noteId) setExpanded(null);
+  };
 
   if (loading)
     return (
@@ -75,6 +266,7 @@ function NotesTab({ projectId }) {
         ))}
       </div>
     );
+
   if (error)
     return (
       <div style={PS.tabContent}>
@@ -88,11 +280,36 @@ function NotesTab({ projectId }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      style={PS.tabContent}
+      style={{ ...PS.tabContent, overflowY: "auto" }}
     >
+      {/* admin toolbar */}
+      {canAdmin && (
+        <div style={PS.notesToolbar}>
+          <span style={PS.notesToolbarLabel}>▤ NOTES [{notes.length}]</span>
+          {!showCreate && (
+            <button onClick={() => setShowCreate(true)} style={PS.notesAddBtn}>
+              + NEW NOTE
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* create form */}
+      <AnimatePresence>
+        {showCreate && (
+          <NoteForm
+            onSave={handleCreate}
+            onCancel={() => setShowCreate(false)}
+            saving={saving && !editingId}
+          />
+        )}
+      </AnimatePresence>
+
       <div style={PS.notesList}>
         {notes.map((note, i) => {
           const isOpen = expanded === note._id;
+          const isEditing = editingId === note._id;
+          const isDeleting = deletingId === note._id;
           const author =
             note.createdBy?.fullName || note.createdBy?.username || "UNKNOWN";
           const date = new Date(note.createdAt)
@@ -102,30 +319,78 @@ function NotesTab({ projectId }) {
               day: "numeric",
             })
             .toUpperCase();
+
           return (
             <motion.div
               key={note._id}
               initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ duration: 0.2, delay: i * 0.07 }}
+              animate={{ opacity: isDeleting ? 0.4 : 1, x: 0 }}
+              exit={{ opacity: 0, height: 0 }}
+              transition={{ duration: 0.2, delay: i * 0.05 }}
               style={{
                 ...PS.noteCard,
-                borderColor: isOpen ? "var(--phosphor-dim)" : "var(--border)",
+                borderColor:
+                  isOpen || isEditing ? "var(--phosphor-dim)" : "var(--border)",
               }}
             >
-              <button
-                onClick={() => setExpanded(isOpen ? null : note._id)}
-                style={PS.noteHeader}
-              >
-                <span style={PS.noteChevron}>{isOpen ? "▼" : "▶"}</span>
-                <span style={PS.noteTitle}>{note.title}</span>
-                <span style={PS.noteAuthor}>
-                  {author.split(" ")[0].toUpperCase()}
-                </span>
-                <span style={PS.noteDate}>{date}</span>
-              </button>
+              {/* header row — always visible */}
+              <div style={PS.noteHeader}>
+                <button
+                  onClick={() =>
+                    !isEditing && setExpanded(isOpen ? null : note._id)
+                  }
+                  style={PS.noteHeaderBtn}
+                >
+                  <span style={PS.noteChevron}>{isOpen ? "▼" : "▶"}</span>
+                  <span style={PS.noteTitle}>{note.title}</span>
+                  <span style={PS.noteAuthor}>
+                    {author.split(" ")[0].toUpperCase()}
+                  </span>
+                  <span style={PS.noteDate}>{date}</span>
+                </button>
+
+                {/* admin actions */}
+                {canAdmin && !isEditing && (
+                  <div style={PS.noteActions}>
+                    <button
+                      onClick={() => {
+                        setExpanded(note._id);
+                        setEditingId(note._id);
+                      }}
+                      style={PS.noteActionBtn}
+                      title="Edit note"
+                    >
+                      ✎
+                    </button>
+                    <button
+                      onClick={() => handleDelete(note._id)}
+                      style={{ ...PS.noteActionBtn, color: "var(--red)" }}
+                      disabled={isDeleting}
+                      title="Delete note"
+                    >
+                      {isDeleting ? "◌" : "✕"}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* edit form */}
               <AnimatePresence>
-                {isOpen && (
+                {isEditing && (
+                  <div style={{ padding: "0 0 12px" }}>
+                    <NoteForm
+                      initial={note}
+                      onSave={(payload) => handleEdit(note._id, payload)}
+                      onCancel={() => setEditingId(null)}
+                      saving={saving && editingId === note._id}
+                    />
+                  </div>
+                )}
+              </AnimatePresence>
+
+              {/* expanded content */}
+              <AnimatePresence>
+                {isOpen && !isEditing && (
                   <motion.div
                     initial={{ height: 0, opacity: 0 }}
                     animate={{ height: "auto", opacity: 1 }}
@@ -140,10 +405,19 @@ function NotesTab({ projectId }) {
             </motion.div>
           );
         })}
-        {notes.length === 0 && (
+
+        {notes.length === 0 && !showCreate && (
           <div style={PS.emptyState}>
             <span style={PS.emptyIcon}>▤</span>
             <span>NO NOTES YET</span>
+            {canAdmin && (
+              <button
+                onClick={() => setShowCreate(true)}
+                style={PS.emptyAddBtn}
+              >
+                + POST FIRST NOTE
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -260,8 +534,17 @@ function TasksTab({ project, members }) {
 
 // ── main page ─────────────────────────────────────────────────────────────────
 export default function ProjectPage({ project, onBack }) {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState("tasks");
   const { members } = useMembers(project._id);
+  const { tasks } = useTasks(project._id);
+
+  // derive current user's role in this project
+  const myMembership = project.members?.find(
+    (m) => (m.user?._id || m.user)?.toString() === user?._id?.toString(),
+  );
+  const myRole = myMembership?.role;
+  const canAdmin = myRole === "admin";
 
   const TABS = [
     { id: "tasks", label: "TASKS" },
@@ -271,6 +554,7 @@ export default function ProjectPage({ project, onBack }) {
 
   return (
     <div style={PS.page}>
+      {/* header */}
       <motion.div
         initial={{ opacity: 0, y: -10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -283,12 +567,17 @@ export default function ProjectPage({ project, onBack }) {
           </button>
           <span style={PS.breadSep}>/</span>
           <span style={PS.breadCurrent}>{project.name}</span>
+          {myRole && <RoleBadge role={myRole} />}
         </div>
         {project.description && (
           <p style={PS.projDesc}>{project.description}</p>
         )}
       </motion.div>
 
+      {/* stats strip — driven by live task + member data */}
+      <ProjectStats project={project} tasks={tasks} members={members} />
+
+      {/* tab bar */}
       <div style={PS.tabBar}>
         {TABS.map((tab) => (
           <button
@@ -309,6 +598,7 @@ export default function ProjectPage({ project, onBack }) {
         <div style={PS.tabRest} />
       </div>
 
+      {/* content */}
       <div style={PS.contentArea}>
         <AnimatePresence mode="wait">
           {activeTab === "tasks" && (
@@ -318,7 +608,7 @@ export default function ProjectPage({ project, onBack }) {
             <MembersTab key="members" projectId={project._id} />
           )}
           {activeTab === "notes" && (
-            <NotesTab key="notes" projectId={project._id} />
+            <NotesTab key="notes" projectId={project._id} canAdmin={canAdmin} />
           )}
         </AnimatePresence>
       </div>
@@ -326,6 +616,7 @@ export default function ProjectPage({ project, onBack }) {
   );
 }
 
+// ── styles ────────────────────────────────────────────────────────────────────
 const PS = {
   page: {
     display: "flex",
@@ -333,12 +624,12 @@ const PS = {
     height: "100%",
     minHeight: 0,
   },
-  pageHeader: { marginBottom: 20 },
+  pageHeader: { marginBottom: 12 },
   breadcrumb: {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   backBtn: {
     background: "none",
@@ -370,6 +661,72 @@ const PS = {
     letterSpacing: 1,
     margin: 0,
   },
+
+  // ── stats strip ──────────────────────────────────────────────────────────
+  statsStrip: {
+    display: "flex",
+    alignItems: "center",
+    gap: 0,
+    background: "var(--surface)",
+    border: "1px solid var(--border)",
+    padding: "10px 16px",
+    marginBottom: 16,
+    position: "relative",
+    overflow: "hidden",
+  },
+  statItem: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    flexShrink: 0,
+  },
+  statValue: {
+    fontFamily: "var(--font-display)",
+    fontSize: 20,
+    letterSpacing: 1,
+    lineHeight: 1,
+  },
+  statLabel: {
+    fontFamily: "var(--font-mono)",
+    fontSize: 7,
+    letterSpacing: 2,
+    color: "var(--muted)",
+    lineHeight: 1,
+  },
+  statDivider: {
+    width: 1,
+    height: 24,
+    background: "var(--border)",
+    margin: "0 16px",
+  },
+  completionWrap: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    marginLeft: "auto",
+    flexShrink: 0,
+  },
+  completionTrack: {
+    width: 120,
+    height: 2,
+    background: "var(--border)",
+    overflow: "hidden",
+  },
+  completionFill: {
+    height: "100%",
+    transition: "width 0.3s ease",
+  },
+  completionPct: {
+    fontFamily: "var(--font-mono)",
+    fontSize: 9,
+    color: "var(--muted)",
+    letterSpacing: 1,
+    width: 28,
+    textAlign: "right",
+    flexShrink: 0,
+  },
+
+  // ── tabs ─────────────────────────────────────────────────────────────────
   tabBar: {
     display: "flex",
     borderBottom: "1px solid var(--border)",
@@ -391,65 +748,110 @@ const PS = {
   tabRest: { flex: 1 },
   contentArea: { flex: 1, minHeight: 0, overflow: "hidden" },
   tabContent: { height: "100%", overflowY: "auto" },
-  memberGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))",
-    gap: 12,
-    padding: "4px 0",
+
+  // ── notes toolbar ────────────────────────────────────────────────────────
+  notesToolbar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 14,
+    paddingBottom: 10,
+    borderBottom: "1px solid var(--border)",
   },
-  memberCard: {
+  notesToolbarLabel: {
+    fontFamily: "var(--font-mono)",
+    fontSize: 9,
+    color: "var(--muted)",
+    letterSpacing: 2,
+  },
+  notesAddBtn: {
+    background: "rgba(0,255,65,0.07)",
+    border: "1px solid var(--phosphor)",
+    color: "var(--phosphor)",
+    fontFamily: "var(--font-mono)",
+    fontSize: 9,
+    letterSpacing: 2,
+    padding: "6px 14px",
+    cursor: "pointer",
+    transition: "background 0.15s",
+  },
+
+  // ── note form ────────────────────────────────────────────────────────────
+  noteForm: {
     background: "var(--surface)",
     border: "1px solid var(--border)",
     padding: "16px",
-    borderRadius: "var(--r-lg)",
+    marginBottom: 14,
+    position: "relative",
     display: "flex",
-    alignItems: "flex-start",
-    gap: 14,
-    transition: "border-color 0.15s",
+    flexDirection: "column",
+    gap: 10,
   },
-  memberAvatar: {
-    width: 40,
-    height: 40,
-    background: "rgba(0,255,65,0.1)",
-    border: "1px solid var(--phosphor)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "var(--phosphor)",
+  corner: {
+    position: "absolute",
+    width: 10,
+    height: 10,
+  },
+  noteFormHeader: {
+    marginBottom: 4,
+  },
+  noteFormLabel: {
     fontFamily: "var(--font-mono)",
-    fontSize: 16,
-    fontWeight: "bold",
-    flexShrink: 0,
+    fontSize: 8,
+    letterSpacing: 3,
+    color: "var(--phosphor)",
   },
-  memberInfo: { display: "flex", flexDirection: "column", gap: 4, minWidth: 0 },
-  memberName: {
+  noteFormInput: {
+    background: "var(--bg)",
+    border: "1px solid var(--border)",
     color: "var(--text)",
     fontFamily: "var(--font-mono)",
     fontSize: 11,
-    letterSpacing: 2,
-    fontWeight: "bold",
+    letterSpacing: 0.5,
+    padding: "9px 12px",
+    outline: "none",
+    width: "100%",
+    boxSizing: "border-box",
+    transition: "border-color 0.15s",
   },
-  memberEmail: {
+  noteFormTextarea: {
+    resize: "vertical",
+    minHeight: 100,
+    lineHeight: 1.7,
+  },
+  noteFormFooter: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  noteFormCount: {
+    fontFamily: "var(--font-mono)",
+    fontSize: 8,
+    color: "var(--muted)",
+    letterSpacing: 1,
+  },
+  noteFormCancel: {
+    background: "none",
+    border: "1px solid var(--border)",
     color: "var(--muted)",
     fontFamily: "var(--font-mono)",
     fontSize: 9,
-    letterSpacing: 1,
-  },
-  memberMeta: { display: "flex", alignItems: "center", gap: 10, marginTop: 4 },
-  roleBadge: {
-    fontFamily: "var(--font-mono)",
-    fontSize: 7,
     letterSpacing: 2,
-    border: "1px solid",
-    padding: "2px 6px",
-    borderRadius: "var(--r-sm)",
+    padding: "7px 14px",
+    cursor: "pointer",
   },
-  memberJoined: {
-    color: "var(--muted)",
+  noteFormSave: {
+    background: "rgba(0,255,65,0.08)",
+    border: "1px solid var(--phosphor)",
+    color: "var(--phosphor)",
     fontFamily: "var(--font-mono)",
-    fontSize: 7,
-    letterSpacing: 1,
+    fontSize: 9,
+    letterSpacing: 2,
+    padding: "7px 16px",
+    transition: "background 0.15s",
   },
+
+  // ── notes list ───────────────────────────────────────────────────────────
   notesList: {
     display: "flex",
     flexDirection: "column",
@@ -463,16 +865,22 @@ const PS = {
     transition: "border-color 0.15s",
   },
   noteHeader: {
-    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    gap: 0,
+  },
+  noteHeaderBtn: {
+    flex: 1,
     background: "none",
     border: "none",
     display: "flex",
     alignItems: "center",
     gap: 12,
-    padding: "14px 16px",
+    padding: "13px 16px",
     cursor: "pointer",
     fontFamily: "var(--font-mono)",
     textAlign: "left",
+    minWidth: 0,
   },
   noteChevron: { color: "var(--phosphor)", fontSize: 8, flexShrink: 0 },
   noteTitle: {
@@ -481,6 +889,10 @@ const PS = {
     letterSpacing: 1,
     fontWeight: "bold",
     flex: 1,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    minWidth: 0,
   },
   noteAuthor: {
     color: "var(--phosphor-dim)",
@@ -494,6 +906,24 @@ const PS = {
     letterSpacing: 1,
     flexShrink: 0,
   },
+  noteActions: {
+    display: "flex",
+    alignItems: "center",
+    gap: 2,
+    paddingRight: 10,
+    flexShrink: 0,
+  },
+  noteActionBtn: {
+    background: "none",
+    border: "none",
+    color: "var(--muted)",
+    cursor: "pointer",
+    fontSize: 11,
+    padding: "4px 7px",
+    fontFamily: "var(--font-mono)",
+    transition: "color 0.15s",
+    lineHeight: 1,
+  },
   noteBody: {
     padding: "12px 16px 16px 36px",
     color: "var(--muted)",
@@ -502,21 +932,10 @@ const PS = {
     lineHeight: 1.7,
     letterSpacing: 0.5,
     borderTop: "1px solid var(--border)",
+    whiteSpace: "pre-wrap",
   },
-  skeletonCard: {
-    background: "var(--surface)",
-    border: "1px solid var(--border)",
-    borderRadius: "var(--r-lg)",
-    padding: 16,
-  },
-  skeletonLine: {
-    height: 10,
-    background:
-      "linear-gradient(90deg, var(--surface) 25%, var(--border) 50%, var(--surface) 75%)",
-    backgroundSize: "200% auto",
-    animation: "shimmer 1.5s linear infinite",
-    borderRadius: 2,
-  },
+
+  // ── empty / error ────────────────────────────────────────────────────────
   emptyState: {
     display: "flex",
     flexDirection: "column",
@@ -530,6 +949,17 @@ const PS = {
     letterSpacing: 2,
   },
   emptyIcon: { fontSize: 28, opacity: 0.3 },
+  emptyAddBtn: {
+    background: "rgba(0,255,65,0.07)",
+    border: "1px solid var(--phosphor)",
+    color: "var(--phosphor)",
+    fontFamily: "var(--font-mono)",
+    fontSize: 9,
+    letterSpacing: 2,
+    padding: "8px 16px",
+    cursor: "pointer",
+    marginTop: 6,
+  },
   errorState: {
     display: "flex",
     flexDirection: "column",
@@ -544,7 +974,6 @@ const PS = {
   retryBtn: {
     background: "none",
     border: "1px solid var(--border)",
-    borderRadius: "var(--r-md)",
     color: "var(--muted)",
     fontFamily: "var(--font-mono)",
     fontSize: 9,
@@ -552,5 +981,30 @@ const PS = {
     padding: "6px 14px",
     cursor: "pointer",
     transition: "border-color 0.15s, color 0.15s",
+  },
+
+  // ── skeleton ────────────────────────────────────────────────────────────
+  skeletonCard: {
+    background: "var(--surface)",
+    border: "1px solid var(--border)",
+    borderRadius: "var(--r-lg)",
+    padding: 16,
+  },
+  skeletonLine: {
+    height: 10,
+    background:
+      "linear-gradient(90deg, var(--surface) 25%, var(--border) 50%, var(--surface) 75%)",
+    backgroundSize: "200% auto",
+    animation: "shimmer 1.5s linear infinite",
+    borderRadius: 2,
+  },
+
+  // ── role badge ───────────────────────────────────────────────────────────
+  roleBadge: {
+    fontFamily: "var(--font-mono)",
+    fontSize: 7,
+    letterSpacing: 2,
+    border: "1px solid",
+    padding: "2px 6px",
   },
 };
