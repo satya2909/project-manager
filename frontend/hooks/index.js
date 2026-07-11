@@ -1,15 +1,12 @@
 import { useState, useEffect, useCallback } from "react";
-import projectService from "../services/project.service.js";
-import taskService from "../services/task.service.js";
-import noteService from "../services/note.service.js";
-
-// ── parseApiError helper ──────────────────────────────────────────────────────
-const parseApiError = (err) => {
-  if (err?.response?.data?.message) return err.response.data.message;
-  if (err?.response?.data?.errors?.length)
-    return err.response.data.errors.map((e) => e.message).join(", ");
-  return err?.message || "An unexpected error occurred";
-};
+import {
+  projectsApi,
+  tasksApi,
+  notesApi,
+  activityApi,
+  parseApiError,
+} from "../../api";
+//export { Spinner, InlineError, InlineSuccess } from "./primitive.jsx";
 
 // ─── useProjects ──────────────────────────────────────────────────────────────
 export function useProjects() {
@@ -21,8 +18,8 @@ export function useProjects() {
     setLoading(true);
     setError(null);
     try {
-      const data = await projectService.listProjects();
-      setProjects(data?.projects ?? data ?? []);
+      const { data } = await projectsApi.list();
+      setProjects(data?.data?.projects ?? []);
     } catch (err) {
       setError(parseApiError(err));
     } finally {
@@ -36,9 +33,9 @@ export function useProjects() {
 
   const createProject = async (payload) => {
     try {
-      const data = await projectService.createProject(payload);
-      setProjects((prev) => [data, ...prev]);
-      return { success: true, data };
+      const { data } = await projectsApi.create(payload);
+      setProjects((prev) => [data?.data?.project, ...prev]);
+      return { success: true, data: data?.data?.project };
     } catch (err) {
       return { success: false, error: parseApiError(err) };
     }
@@ -46,9 +43,9 @@ export function useProjects() {
 
   const updateProject = async (id, payload) => {
     try {
-      const data = await projectService.updateProject(id, payload);
+      const { data } = await projectsApi.update(id, payload);
       setProjects((prev) =>
-        prev.map((p) => (p._id === id ? { ...p, ...data } : p)),
+        prev.map((p) => (p._id === id ? { ...p, ...data?.data?.project } : p)),
       );
       return { success: true };
     } catch (err) {
@@ -58,7 +55,7 @@ export function useProjects() {
 
   const deleteProject = async (id) => {
     try {
-      await projectService.deleteProject(id);
+      await projectsApi.delete(id);
       setProjects((prev) => prev.filter((p) => p._id !== id));
       return { success: true };
     } catch (err) {
@@ -88,8 +85,8 @@ export function useProject(projectId) {
     setLoading(true);
     setError(null);
     try {
-      const data = await projectService.getProject(projectId);
-      setProject(data ?? null);
+      const { data } = await projectsApi.get(projectId);
+      setProject(data?.data?.project ?? null);
     } catch (err) {
       setError(parseApiError(err));
     } finally {
@@ -115,8 +112,8 @@ export function useMembers(projectId) {
     setLoading(true);
     setError(null);
     try {
-      const data = await projectService.listMembers(projectId);
-      setMembers(data?.members ?? data ?? []);
+      const { data } = await projectsApi.listMembers(projectId);
+      setMembers(data?.data?.members ?? []);
     } catch (err) {
       setError(parseApiError(err));
     } finally {
@@ -130,8 +127,8 @@ export function useMembers(projectId) {
 
   const addMember = async (email, role) => {
     try {
-      const data = await projectService.addMember(projectId, { email, role });
-      setMembers((prev) => [...prev, data]);
+      const { data } = await projectsApi.addMember(projectId, { email, role });
+      setMembers((prev) => [...prev, data?.data]);
       return { success: true };
     } catch (err) {
       return { success: false, error: parseApiError(err) };
@@ -140,7 +137,7 @@ export function useMembers(projectId) {
 
   const updateMember = async (userId, role) => {
     try {
-      await projectService.updateMemberRole(projectId, userId, { role });
+      await projectsApi.updateMember(projectId, userId, { role });
       setMembers((prev) =>
         prev.map((m) => (m.user?._id === userId ? { ...m, role } : m)),
       );
@@ -152,7 +149,7 @@ export function useMembers(projectId) {
 
   const removeMember = async (userId) => {
     try {
-      await projectService.removeMember(projectId, userId);
+      await projectsApi.removeMember(projectId, userId);
       setMembers((prev) => prev.filter((m) => m.user?._id !== userId));
       return { success: true };
     } catch (err) {
@@ -182,8 +179,8 @@ export function useTasks(projectId) {
     setLoading(true);
     setError(null);
     try {
-      const data = await taskService.listTasks(projectId);
-      setTasks(data?.tasks ?? data ?? []);
+      const { data } = await tasksApi.list(projectId);
+      setTasks(data?.data?.tasks ?? []);
     } catch (err) {
       setError(parseApiError(err));
     } finally {
@@ -197,34 +194,33 @@ export function useTasks(projectId) {
 
   const createTask = async (payload) => {
     try {
-      const data = await taskService.createTask(projectId, payload);
-      setTasks((prev) => [...prev, data]);
-      return { success: true, data };
+      const { data } = await tasksApi.create(projectId, payload);
+      setTasks((prev) => [...prev, data?.data?.task]);
+      return { success: true, data: data?.data?.task };
     } catch (err) {
       return { success: false, error: parseApiError(err) };
     }
   };
 
   const updateTask = async (taskId, payload) => {
-    // optimistic
     setTasks((prev) =>
       prev.map((t) => (t._id === taskId ? { ...t, ...payload } : t)),
     );
     try {
-      const data = await taskService.updateTask(projectId, taskId, payload);
+      const { data } = await tasksApi.update(projectId, taskId, payload);
       setTasks((prev) =>
-        prev.map((t) => (t._id === taskId ? { ...t, ...data } : t)),
+        prev.map((t) => (t._id === taskId ? { ...t, ...data?.data?.task } : t)),
       );
       return { success: true };
     } catch (err) {
-      fetch(); // rollback
+      fetch();
       return { success: false, error: parseApiError(err) };
     }
   };
 
   const deleteTask = async (taskId) => {
     try {
-      await taskService.deleteTask(projectId, taskId);
+      await tasksApi.delete(projectId, taskId);
       setTasks((prev) => prev.filter((t) => t._id !== taskId));
       return { success: true };
     } catch (err) {
@@ -244,6 +240,86 @@ export function useTasks(projectId) {
   };
 }
 
+// ─── useTask (single) ─────────────────────────────────────────────────────────
+export function useTask(projectId, taskId) {
+  const [task, setTask] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetch = useCallback(async () => {
+    if (!projectId || !taskId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await tasksApi.get(projectId, taskId);
+      setTask(data?.data?.task ?? null);
+    } catch (err) {
+      setError(parseApiError(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId, taskId]);
+
+  useEffect(() => {
+    fetch();
+  }, [fetch]);
+
+  const updateSubtask = async (subTaskId, payload) => {
+    try {
+      const { data } = await tasksApi.updateSubtask(
+        projectId,
+        subTaskId,
+        payload,
+      );
+      setTask((prev) => ({
+        ...prev,
+        subtasks: prev.subtasks?.map((s) =>
+          s._id === subTaskId ? { ...s, ...data?.data?.subTask } : s,
+        ),
+      }));
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: parseApiError(err) };
+    }
+  };
+
+  const createSubtask = async (payload) => {
+    try {
+      const { data } = await tasksApi.createSubtask(projectId, taskId, payload);
+      setTask((prev) => ({
+        ...prev,
+        subtasks: [...(prev.subtasks ?? []), data?.data?.subTask],
+      }));
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: parseApiError(err) };
+    }
+  };
+
+  const deleteSubtask = async (subTaskId) => {
+    try {
+      await tasksApi.deleteSubtask(projectId, subTaskId);
+      setTask((prev) => ({
+        ...prev,
+        subtasks: prev.subtasks?.filter((s) => s._id !== subTaskId),
+      }));
+      return { success: true };
+    } catch (err) {
+      return { success: false, error: parseApiError(err) };
+    }
+  };
+
+  return {
+    task,
+    loading,
+    error,
+    refetch: fetch,
+    updateSubtask,
+    createSubtask,
+    deleteSubtask,
+  };
+}
+
 // ─── useNotes ─────────────────────────────────────────────────────────────────
 export function useNotes(projectId) {
   const [notes, setNotes] = useState([]);
@@ -255,8 +331,8 @@ export function useNotes(projectId) {
     setLoading(true);
     setError(null);
     try {
-      const data = await noteService.listNotes(projectId);
-      setNotes(data?.notes ?? data ?? []);
+      const { data } = await notesApi.list(projectId);
+      setNotes(data?.data?.notes ?? []);
     } catch (err) {
       setError(parseApiError(err));
     } finally {
@@ -270,8 +346,8 @@ export function useNotes(projectId) {
 
   const createNote = async (payload) => {
     try {
-      const data = await noteService.createNote(projectId, payload);
-      setNotes((prev) => [data, ...prev]);
+      const { data } = await notesApi.create(projectId, payload);
+      setNotes((prev) => [data?.data?.note, ...prev]);
       return { success: true };
     } catch (err) {
       return { success: false, error: parseApiError(err) };
@@ -280,9 +356,9 @@ export function useNotes(projectId) {
 
   const updateNote = async (noteId, payload) => {
     try {
-      const data = await noteService.updateNote(projectId, noteId, payload);
+      const { data } = await notesApi.update(projectId, noteId, payload);
       setNotes((prev) =>
-        prev.map((n) => (n._id === noteId ? { ...n, ...data } : n)),
+        prev.map((n) => (n._id === noteId ? { ...n, ...data?.data?.note } : n)),
       );
       return { success: true };
     } catch (err) {
@@ -292,7 +368,7 @@ export function useNotes(projectId) {
 
   const deleteNote = async (noteId) => {
     try {
-      await noteService.deleteNote(projectId, noteId);
+      await notesApi.delete(projectId, noteId);
       setNotes((prev) => prev.filter((n) => n._id !== noteId));
       return { success: true };
     } catch (err) {
@@ -309,4 +385,39 @@ export function useNotes(projectId) {
     updateNote,
     deleteNote,
   };
+}
+
+// ─── useActivity ──────────────────────────────────────────────────────────────
+// Fetches the real-time activity feed for a project.
+// Polls every 30 seconds to stay fresh without websockets.
+export function useActivity(projectId, { limit = 20, poll = true } = {}) {
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetch = useCallback(async () => {
+    if (!projectId) return;
+    setError(null);
+    try {
+      const { data } = await activityApi.list(projectId, { limit });
+      setEvents(data?.data?.events ?? []);
+    } catch (err) {
+      setError(parseApiError(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId, limit]);
+
+  useEffect(() => {
+    fetch();
+  }, [fetch]);
+
+  // Lightweight polling — 30s interval, clears on unmount
+  useEffect(() => {
+    if (!poll || !projectId) return;
+    const interval = setInterval(fetch, 30_000);
+    return () => clearInterval(interval);
+  }, [fetch, poll, projectId]);
+
+  return { events, loading, error, refetch: fetch };
 }

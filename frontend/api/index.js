@@ -15,7 +15,7 @@ export const setAccessToken = (token) =>
   localStorage.setItem("access_token", token);
 export const clearAccessToken = () => localStorage.removeItem("access_token");
 
-// ─── REQUEST INTERCEPTOR — attach bearer token ────────────────────────────────
+// ─── REQUEST INTERCEPTOR ─────────────────────────────────────────────────────
 api.interceptors.request.use(
   (config) => {
     const token = getAccessToken();
@@ -27,17 +27,14 @@ api.interceptors.request.use(
   (error) => Promise.reject(error),
 );
 
-// ─── RESPONSE INTERCEPTOR — handle 401 + refresh ─────────────────────────────
+// ─── RESPONSE INTERCEPTOR — 401 + silent refresh ─────────────────────────────
 let isRefreshing = false;
 let failedQueue = [];
 
 const processQueue = (error, token = null) => {
   failedQueue.forEach((prom) => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
-    }
+    if (error) prom.reject(error);
+    else prom.resolve(token);
   });
   failedQueue = [];
 };
@@ -47,14 +44,12 @@ api.interceptors.response.use(
   async (error) => {
     const originalRequest = error.config;
 
-    // If 401 and we haven't already retried
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&
       !originalRequest.url?.includes("/auth/refresh-token")
     ) {
       if (isRefreshing) {
-        // Queue requests while refreshing
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
         })
@@ -81,7 +76,7 @@ api.interceptors.response.use(
       } catch (refreshError) {
         processQueue(refreshError, null);
         clearAccessToken();
-        return Promise.reject(originalRequestnet);
+        return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
       }
@@ -91,7 +86,7 @@ api.interceptors.response.use(
   },
 );
 
-// ─── AUTH ENDPOINTS ───────────────────────────────────────────────────────────
+// ─── AUTH ─────────────────────────────────────────────────────────────────────
 export const authApi = {
   register: (data) => api.post("/auth/register", data),
   login: (data) => api.post("/auth/login", data),
@@ -106,15 +101,13 @@ export const authApi = {
   resendVerification: () => api.post("/auth/resend-email-verification"),
 };
 
-// ─── PROJECT ENDPOINTS ────────────────────────────────────────────────────────
+// ─── PROJECTS ─────────────────────────────────────────────────────────────────
 export const projectsApi = {
   list: () => api.get("/projects"),
   create: (data) => api.post("/projects", data),
   get: (projectId) => api.get(`/projects/${projectId}`),
   update: (projectId, data) => api.put(`/projects/${projectId}`, data),
   delete: (projectId) => api.delete(`/projects/${projectId}`),
-
-  // Members
   listMembers: (projectId) => api.get(`/projects/${projectId}/members`),
   addMember: (projectId, data) =>
     api.post(`/projects/${projectId}/members`, data),
@@ -124,7 +117,7 @@ export const projectsApi = {
     api.delete(`/projects/${projectId}/members/${userId}`),
 };
 
-// ─── TASK ENDPOINTS ───────────────────────────────────────────────────────────
+// ─── TASKS ────────────────────────────────────────────────────────────────────
 export const tasksApi = {
   list: (projectId) => api.get(`/tasks/${projectId}`),
   create: (projectId, data) => api.post(`/tasks/${projectId}`, data),
@@ -132,23 +125,19 @@ export const tasksApi = {
   update: (projectId, taskId, data) =>
     api.put(`/tasks/${projectId}/t/${taskId}`, data),
   delete: (projectId, taskId) => api.delete(`/tasks/${projectId}/t/${taskId}`),
-
-  // Subtasks
   createSubtask: (projectId, taskId, data) =>
     api.post(`/tasks/${projectId}/t/${taskId}/subtasks`, data),
   updateSubtask: (projectId, subTaskId, data) =>
     api.put(`/tasks/${projectId}/st/${subTaskId}`, data),
   deleteSubtask: (projectId, subTaskId) =>
     api.delete(`/tasks/${projectId}/st/${subTaskId}`),
-
-  // File attachments (multipart)
   uploadAttachment: (projectId, taskId, formData) =>
-    api.post(`/tasks/${projectId}/t/${taskId}`, formData, {
+    api.post(`/tasks/${projectId}/t/${taskId}/attachments`, formData, {
       headers: { "Content-Type": "multipart/form-data" },
     }),
 };
 
-// ─── NOTES ENDPOINTS ──────────────────────────────────────────────────────────
+// ─── NOTES ────────────────────────────────────────────────────────────────────
 export const notesApi = {
   list: (projectId) => api.get(`/notes/${projectId}`),
   create: (projectId, data) => api.post(`/notes/${projectId}`, data),
@@ -158,7 +147,13 @@ export const notesApi = {
   delete: (projectId, noteId) => api.delete(`/notes/${projectId}/n/${noteId}`),
 };
 
-// ─── HEALTH CHECK ─────────────────────────────────────────────────────────────
+// ─── ACTIVITY ─────────────────────────────────────────────────────────────────
+export const activityApi = {
+  list: (projectId, params = {}) =>
+    api.get(`/activity/${projectId}`, { params }),
+};
+
+// ─── HEALTH ───────────────────────────────────────────────────────────────────
 export const healthApi = {
   check: () => api.get("/healthcheck"),
 };

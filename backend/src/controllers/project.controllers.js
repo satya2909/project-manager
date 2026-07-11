@@ -1,12 +1,22 @@
-import { Project, User } from "../models/index.js";
+import { Project, User, Activity } from "../models/index.js";
 import { ApiError } from "../utils/api-error.js";
 import { ApiResponses } from "../utils/api-responses.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { UserRolesEnum, RoleHierarchy } from "../utils/constants.js";
 import { sendProjectInviteEmail } from "../utils/mail.js";
 
+// ─── helper ───────────────────────────────────────────────────────────────────
+const log = (projectId, userId, action, target = "", metadata = {}) => {
+  Activity.create({
+    project: projectId,
+    user: userId,
+    action,
+    target,
+    metadata,
+  }).catch((e) => console.error("[Activity]", e.message));
+};
+
 // ─── POST /projects ───────────────────────────────────────────────────────────
-// Create a new project. Creator is auto-added as admin.
 export const createProject = asyncHandler(async (req, res) => {
   const { name, description } = req.body;
 
@@ -23,7 +33,6 @@ export const createProject = asyncHandler(async (req, res) => {
 });
 
 // ─── GET /projects ────────────────────────────────────────────────────────────
-// List all projects the requesting user belongs to.
 export const getUserProjects = asyncHandler(async (req, res) => {
   const projects = await Project.find({ "members.user": req.user._id })
     .populate("createdBy", "username fullName avatar")
@@ -61,7 +70,6 @@ export const getProjectById = asyncHandler(async (req, res) => {
 });
 
 // ─── PUT /projects/:projectId ─────────────────────────────────────────────────
-// Admin only — enforced by route middleware chain.
 export const updateProject = asyncHandler(async (req, res) => {
   const { name, description } = req.body;
 
@@ -79,12 +87,8 @@ export const updateProject = asyncHandler(async (req, res) => {
 });
 
 // ─── DELETE /projects/:projectId ──────────────────────────────────────────────
-// Admin only.
 export const deleteProject = asyncHandler(async (req, res) => {
   await Project.findByIdAndDelete(req.project._id);
-
-  // Cascade deletes (tasks, subtasks, notes) will be added in Phase 4
-  // after all models are wired. Stubbed here for clarity.
 
   return res
     .status(200)
@@ -105,7 +109,6 @@ export const getProjectMembers = asyncHandler(async (req, res) => {
 });
 
 // ─── POST /projects/:projectId/members ────────────────────────────────────────
-// Admin only. Looks up user by email, adds them, sends invite email.
 export const addProjectMember = asyncHandler(async (req, res) => {
   const { email, role = UserRolesEnum.MEMBER } = req.body;
 
@@ -141,6 +144,14 @@ export const addProjectMember = asyncHandler(async (req, res) => {
     req.user.username,
   );
 
+  log(
+    req.project._id,
+    req.user._id,
+    "added_member",
+    userToAdd.username || userToAdd.email,
+    { role },
+  );
+
   return res
     .status(200)
     .json(
@@ -153,7 +164,6 @@ export const addProjectMember = asyncHandler(async (req, res) => {
 });
 
 // ─── PUT /projects/:projectId/members/:userId ──────────────────────────────────
-// Admin only. Cannot self-demote or assign role higher than own.
 export const updateMemberRole = asyncHandler(async (req, res) => {
   const { userId } = req.params;
   const { role } = req.body;
@@ -176,16 +186,25 @@ export const updateMemberRole = asyncHandler(async (req, res) => {
     throw new ApiError(404, "User is not a member of this project");
   }
 
-  // Prevent privilege escalation — cannot assign a role higher than your own
   if (RoleHierarchy[role] > RoleHierarchy[req.projectRole]) {
     throw new ApiError(403, "You cannot assign a role higher than your own");
   }
+
+  const targetUser = await User.findById(userId).select("username");
 
   const updatedProject = await Project.findOneAndUpdate(
     { _id: req.project._id, "members.user": userId },
     { $set: { "members.$.role": role } },
     { new: true },
   ).populate("members.user", "username fullName avatar email");
+
+  log(
+    req.project._id,
+    req.user._id,
+    "updated_role",
+    targetUser?.username || userId,
+    { from: targetMembership.role, to: role },
+  );
 
   return res
     .status(200)
@@ -195,7 +214,6 @@ export const updateMemberRole = asyncHandler(async (req, res) => {
 });
 
 // ─── DELETE /projects/:projectId/members/:userId ───────────────────────────────
-// Admin only. Cannot remove yourself.
 export const removeProjectMember = asyncHandler(async (req, res) => {
   const { userId } = req.params;
 
@@ -210,11 +228,20 @@ export const removeProjectMember = asyncHandler(async (req, res) => {
     throw new ApiError(404, "User is not a member of this project");
   }
 
+  const targetUser = await User.findById(userId).select("username");
+
   const updatedProject = await Project.findByIdAndUpdate(
     req.project._id,
     { $pull: { members: { user: userId } } },
     { new: true },
   ).populate("members.user", "username fullName avatar email");
+
+  log(
+    req.project._id,
+    req.user._id,
+    "removed_member",
+    targetUser?.username || userId,
+  );
 
   return res
     .status(200)

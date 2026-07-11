@@ -4,3 +4,4 @@ export { Project } from "./project.models.js";
 export { Task } from "./task.models.js";
 export { SubTask } from "./subtask.models.js";
 export { ProjectNote } from "./projectnote.models.js";
+export { Activity } from "./activity.models.js";

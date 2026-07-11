@@ -1,13 +1,24 @@
 import path from "path";
 import fs from "fs";
-import { Task, SubTask } from "../models/index.js";
+import { Task, SubTask, Activity } from "../models/index.js";
 import { ApiError } from "../utils/api-error.js";
 import { ApiResponses } from "../utils/api-responses.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { TaskStatusEnum, UserRolesEnum } from "../utils/constants.js";
 
+// ─── helper ───────────────────────────────────────────────────────────────────
+// Fire-and-forget activity log — never throws so it can't break the response.
+const log = (projectId, userId, action, target = "", metadata = {}) => {
+  Activity.create({
+    project: projectId,
+    user: userId,
+    action,
+    target,
+    metadata,
+  }).catch((e) => console.error("[Activity]", e.message));
+};
+
 // ─── GET /tasks/:projectId ────────────────────────────────────────────────────
-// List all tasks in a project. Optional ?status= and ?assignedTo= filters.
 export const getProjectTasks = asyncHandler(async (req, res) => {
   const { status, assignedTo } = req.query;
 
@@ -30,7 +41,6 @@ export const getProjectTasks = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 })
     .lean();
 
-  // Append subtask completion stats for Kanban cards
   const tasksWithStats = tasks.map((t) => ({
     ...t,
     subTaskStats: {
@@ -45,11 +55,9 @@ export const getProjectTasks = asyncHandler(async (req, res) => {
 });
 
 // ─── POST /tasks/:projectId ───────────────────────────────────────────────────
-// Create a task. Admin or Project Admin only (enforced by route).
 export const createTask = asyncHandler(async (req, res) => {
   const { title, description, assignedTo, status } = req.body;
 
-  // If assigning to a user, verify they're a project member
   if (assignedTo) {
     const isMember = req.project.members.some(
       (m) => m.user.toString() === assignedTo,
@@ -71,6 +79,8 @@ export const createTask = asyncHandler(async (req, res) => {
   const populated = await Task.findById(task._id)
     .populate("assignedTo", "username fullName avatar")
     .populate("createdBy", "username fullName avatar");
+
+  log(req.project._id, req.user._id, "created_task", title);
 
   return res
     .status(201)
@@ -102,9 +112,6 @@ export const getTaskById = asyncHandler(async (req, res) => {
 });
 
 // ─── PUT /tasks/:projectId/t/:taskId ─────────────────────────────────────────
-// Update task fields. Admin/Project Admin only — except status, which members
-// can also update (handled by a dedicated PATCH endpoint if desired; here the
-// controller respects the role set by the route middleware).
 export const updateTask = asyncHandler(async (req, res) => {
   const { taskId } = req.params;
   const { title, description, assignedTo, status } = req.body;
@@ -114,7 +121,6 @@ export const updateTask = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Task not found");
   }
 
-  // Validate assignee is a project member
   if (assignedTo) {
     const isMember = req.project.members.some(
       (m) => m.user.toString() === assignedTo,
@@ -142,13 +148,22 @@ export const updateTask = asyncHandler(async (req, res) => {
       populate: { path: "assignedTo", select: "username avatar" },
     });
 
+  // Log status change as a move event; other field edits as a plain update
+  if (status !== undefined && status !== task.status) {
+    log(req.project._id, req.user._id, "moved_task", task.title, {
+      from: task.status,
+      to: status,
+    });
+  } else if (Object.keys(updates).length > 0) {
+    log(req.project._id, req.user._id, "updated_task", task.title);
+  }
+
   return res
     .status(200)
     .json(new ApiResponses(200, { task: updatedTask }, "Task updated"));
 });
 
 // ─── DELETE /tasks/:projectId/t/:taskId ───────────────────────────────────────
-// Deletes task + its subtasks + its uploaded files. Admin/Project Admin only.
 export const deleteTask = asyncHandler(async (req, res) => {
   const { taskId, projectId } = req.params;
 
@@ -157,10 +172,8 @@ export const deleteTask = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Task not found");
   }
 
-  // Delete all subtasks belonging to this task
   await SubTask.deleteMany({ task: taskId });
 
-  // Remove uploaded files from disk
   const uploadDir = path.join(
     process.cwd(),
     "public",
@@ -174,6 +187,8 @@ export const deleteTask = asyncHandler(async (req, res) => {
 
   await Task.findByIdAndDelete(taskId);
 
+  log(req.project._id, req.user._id, "deleted_task", task.title);
+
   return res
     .status(200)
     .json(
@@ -182,7 +197,6 @@ export const deleteTask = asyncHandler(async (req, res) => {
 });
 
 // ─── POST /tasks/:projectId/t/:taskId/subtasks ────────────────────────────────
-// Add a subtask to an existing task. Admin/Project Admin only.
 export const createSubTask = asyncHandler(async (req, res) => {
   const { taskId } = req.params;
   const { title, assignedTo } = req.body;
@@ -192,7 +206,6 @@ export const createSubTask = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Task not found");
   }
 
-  // Validate assignee if provided
   if (assignedTo) {
     const isMember = req.project.members.some(
       (m) => m.user.toString() === assignedTo,
@@ -213,20 +226,24 @@ export const createSubTask = asyncHandler(async (req, res) => {
     .populate("assignedTo", "username fullName avatar")
     .populate("createdBy", "username fullName avatar");
 
+  log(req.project._id, req.user._id, "created_subtask", title, {
+    taskTitle: task.title,
+  });
+
   return res
     .status(201)
     .json(new ApiResponses(201, { subTask: populated }, "Subtask created"));
 });
 
 // ─── PUT /tasks/:projectId/st/:subTaskId ──────────────────────────────────────
-// Update a subtask. All members can toggle isCompleted.
-// Only Admin/Project Admin can change title or assignedTo (enforced by route).
 export const updateSubTask = asyncHandler(async (req, res) => {
-  const { subTaskId, projectId } = req.params;
+  const { subTaskId } = req.params;
   const { title, isCompleted, assignedTo } = req.body;
 
-  // Verify subtask belongs to a task in this project
-  const subTask = await SubTask.findById(subTaskId).populate("task", "project");
+  const subTask = await SubTask.findById(subTaskId).populate(
+    "task",
+    "project title",
+  );
   if (
     !subTask ||
     subTask.task.project.toString() !== req.project._id.toString()
@@ -236,7 +253,6 @@ export const updateSubTask = asyncHandler(async (req, res) => {
 
   const isMemberRole = req.projectRole === UserRolesEnum.MEMBER;
 
-  // Members can only toggle completion — nothing else
   if (isMemberRole && (title !== undefined || assignedTo !== undefined)) {
     throw new ApiError(
       403,
@@ -247,7 +263,6 @@ export const updateSubTask = asyncHandler(async (req, res) => {
   const updates = {};
   if (isCompleted !== undefined) updates.isCompleted = isCompleted;
 
-  // Admin/Project Admin only fields
   if (!isMemberRole) {
     if (title !== undefined) updates.title = title;
     if (assignedTo !== undefined) {
@@ -270,6 +285,17 @@ export const updateSubTask = asyncHandler(async (req, res) => {
     { new: true, runValidators: true },
   ).populate("assignedTo createdBy", "username fullName avatar");
 
+  // Log completion toggle specifically
+  if (isCompleted === true && subTask.isCompleted === false) {
+    log(req.project._id, req.user._id, "completed_subtask", subTask.title, {
+      taskTitle: subTask.task.title,
+    });
+  } else if (isCompleted === false && subTask.isCompleted === true) {
+    log(req.project._id, req.user._id, "uncompleted_subtask", subTask.title, {
+      taskTitle: subTask.task.title,
+    });
+  }
+
   return res
     .status(200)
     .json(
@@ -278,11 +304,13 @@ export const updateSubTask = asyncHandler(async (req, res) => {
 });
 
 // ─── DELETE /tasks/:projectId/st/:subTaskId ───────────────────────────────────
-// Admin/Project Admin only.
 export const deleteSubTask = asyncHandler(async (req, res) => {
   const { subTaskId } = req.params;
 
-  const subTask = await SubTask.findById(subTaskId).populate("task", "project");
+  const subTask = await SubTask.findById(subTaskId).populate(
+    "task",
+    "project title",
+  );
   if (
     !subTask ||
     subTask.task.project.toString() !== req.project._id.toString()
@@ -292,12 +320,14 @@ export const deleteSubTask = asyncHandler(async (req, res) => {
 
   await SubTask.findByIdAndDelete(subTaskId);
 
+  log(req.project._id, req.user._id, "deleted_subtask", subTask.title, {
+    taskTitle: subTask.task.title,
+  });
+
   return res.status(200).json(new ApiResponses(200, {}, "Subtask deleted"));
 });
 
 // ─── POST /tasks/:projectId/t/:taskId/attachments ─────────────────────────────
-// Upload files to a task. Multer middleware runs before this controller and
-// populates req.files. Admin/Project Admin only.
 export const addTaskAttachments = asyncHandler(async (req, res) => {
   const { taskId } = req.params;
 
@@ -310,10 +340,8 @@ export const addTaskAttachments = asyncHandler(async (req, res) => {
     throw new ApiError(400, "No files were uploaded");
   }
 
-  // Check total attachments won't exceed limit
   const totalAfterUpload = task.attachments.length + req.files.length;
   if (totalAfterUpload > 5) {
-    // Remove the uploaded files since we're rejecting
     req.files.forEach((f) => fs.existsSync(f.path) && fs.unlinkSync(f.path));
     throw new ApiError(
       400,
@@ -321,7 +349,6 @@ export const addTaskAttachments = asyncHandler(async (req, res) => {
     );
   }
 
-  // Build attachment metadata for each uploaded file
   const newAttachments = req.files.map((file) => ({
     url: `/images/${req.params.projectId}/${taskId}/${file.filename}`,
     mimetype: file.mimetype,
@@ -347,9 +374,8 @@ export const addTaskAttachments = asyncHandler(async (req, res) => {
 });
 
 // ─── DELETE /tasks/:projectId/t/:taskId/attachments/:attachmentId ─────────────
-// Remove a single attachment from a task and delete it from disk.
 export const deleteTaskAttachment = asyncHandler(async (req, res) => {
-  const { taskId, attachmentId, projectId } = req.params;
+  const { taskId, attachmentId } = req.params;
 
   const task = await Task.findOne({ _id: taskId, project: req.project._id });
   if (!task) {
@@ -361,7 +387,6 @@ export const deleteTaskAttachment = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Attachment not found");
   }
 
-  // Delete file from disk
   const filePath = path.join(process.cwd(), "public", attachment.url);
   if (fs.existsSync(filePath)) {
     fs.unlinkSync(filePath);

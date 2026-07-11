@@ -1,146 +1,169 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
 import { Spinner } from "../../components/ui";
+import { useActivity } from "../../hooks/index.js";
 
-// ── mock data (swap with real API calls) ──────────────────────────────────────
-const MOCK_STATS = [
-  { label: "ACTIVE PROJECTS", value: "07", delta: "+2 THIS WEEK" },
-  { label: "OPEN TASKS", value: "34", delta: "12 IN PROGRESS" },
-  { label: "TEAM MEMBERS", value: "19", delta: "3 ADDED RECENTLY" },
-  { label: "COMPLETION RATE", value: "68%", delta: "↑ 4% VS LAST SPRINT" },
-];
-
-const MOCK_PROJECTS = [
-  {
-    _id: "p1",
-    name: "MISSION ALPHA",
-    description: "Core authentication and user management layer.",
-    memberCount: 4,
-    taskCount: 12,
-    doneCount: 8,
-    lastActive: "2H AGO",
-    color: "var(--phosphor)",
-  },
-  {
-    _id: "p2",
-    name: "GRID FRAMEWORK",
-    description: "Reusable component library and design tokens.",
-    memberCount: 6,
-    taskCount: 21,
-    doneCount: 9,
-    lastActive: "5H AGO",
+// ─── Action config ────────────────────────────────────────────────────────────
+const ACTION_CFG = {
+  created_task: { symbol: "+", color: "var(--amber)", verb: "created task" },
+  updated_task: { symbol: "↻", color: "var(--muted)", verb: "updated task" },
+  moved_task: { symbol: "→", color: "var(--phosphor)", verb: "moved task" },
+  deleted_task: { symbol: "✕", color: "var(--red)", verb: "deleted task" },
+  created_subtask: {
+    symbol: "+",
     color: "var(--amber)",
+    verb: "added subtask",
   },
-  {
-    _id: "p3",
-    name: "DARK CHANNEL",
-    description: "Internal analytics pipeline and dashboards.",
-    memberCount: 3,
-    taskCount: 8,
-    doneCount: 2,
-    lastActive: "1D AGO",
-    color: "var(--red)",
-  },
-  {
-    _id: "p4",
-    name: "PROJECT ECHO",
-    description: "Customer-facing API gateway and rate limiter.",
-    memberCount: 5,
-    taskCount: 15,
-    doneCount: 15,
-    lastActive: "JUST NOW",
+  completed_subtask: {
+    symbol: "✓",
     color: "var(--phosphor)",
+    verb: "completed subtask",
   },
-  {
-    _id: "p5",
-    name: "SLATE OPS",
-    description: "DevOps automation and deployment pipeline.",
-    memberCount: 2,
-    taskCount: 6,
-    doneCount: 1,
-    lastActive: "3D AGO",
+  uncompleted_subtask: {
+    symbol: "↩",
     color: "var(--muted)",
+    verb: "unchecked subtask",
   },
-  {
-    _id: "p6",
-    name: "NOVA SYNC",
-    description: "Real-time sync engine for offline-first apps.",
-    memberCount: 7,
-    taskCount: 18,
-    doneCount: 6,
-    lastActive: "6H AGO",
-    color: "var(--amber)",
+  deleted_subtask: {
+    symbol: "✕",
+    color: "var(--red)",
+    verb: "deleted subtask",
   },
-];
-
-const MOCK_ACTIVITY = [
-  {
-    id: 1,
-    user: "SHAH",
-    action: "moved task",
-    target: "AUTH-09 → DONE",
-    time: "2 MIN AGO",
-    type: "done",
-  },
-  {
-    id: 2,
-    user: "PRIYA",
-    action: "created task",
-    target: "RATE LIMITER SPIKE",
-    time: "14 MIN AGO",
-    type: "create",
-  },
-  {
-    id: 3,
-    user: "MARCUS",
-    action: "added member",
-    target: "jess@corp.io → ECHO",
-    time: "1H AGO",
-    type: "member",
-  },
-  {
-    id: 4,
-    user: "JIN",
-    action: "updated subtask",
-    target: "DB migration step 3",
-    time: "2H AGO",
-    type: "update",
-  },
-  {
-    id: 5,
-    user: "LEILA",
-    action: "posted note",
-    target: "SLATE OPS sprint review",
-    time: "4H AGO",
-    type: "note",
-  },
-  {
-    id: 6,
-    user: "CARLOS",
-    action: "closed task",
-    target: "GRID-14 component audit",
-    time: "6H AGO",
-    type: "done",
-  },
-];
-
-const TYPE_COLOR = {
-  done: "var(--phosphor)",
-  create: "var(--amber)",
-  member: "var(--text)",
-  update: "var(--phosphor-dim)",
-  note: "var(--muted)",
-};
-const TYPE_SYMBOL = {
-  done: "✓",
-  create: "+",
-  member: "◈",
-  update: "↻",
-  note: "▤",
+  created_note: { symbol: "▤", color: "var(--muted)", verb: "posted note" },
+  updated_note: { symbol: "✎", color: "var(--muted)", verb: "edited note" },
+  deleted_note: { symbol: "✕", color: "var(--red)", verb: "deleted note" },
+  added_member: { symbol: "◈", color: "var(--text)", verb: "added member" },
+  updated_role: { symbol: "◈", color: "var(--amber)", verb: "updated role" },
+  removed_member: { symbol: "◈", color: "var(--red)", verb: "removed member" },
 };
 
-// ── sub-components ────────────────────────────────────────────────────────────
+// ─── relative time ────────────────────────────────────────────────────────────
+function relativeTime(iso) {
+  const diff = Date.now() - new Date(iso).getTime();
+  const mins = Math.floor(diff / 60_000);
+  const hours = Math.floor(diff / 3_600_000);
+  const days = Math.floor(diff / 86_400_000);
+  if (mins < 1) return "JUST NOW";
+  if (mins < 60) return `${mins}M AGO`;
+  if (hours < 24) return `${hours}H AGO`;
+  return `${days}D AGO`;
+}
 
+// ─── metadata label ───────────────────────────────────────────────────────────
+function metaLabel(action, metadata) {
+  if (action === "moved_task" && metadata?.from && metadata?.to) {
+    return `${metadata.from.toUpperCase().replace("_", " ")} → ${metadata.to.toUpperCase().replace("_", " ")}`;
+  }
+  if (action === "updated_role" && metadata?.from && metadata?.to) {
+    return `${metadata.from} → ${metadata.to}`;
+  }
+  if (action === "added_member" && metadata?.role) {
+    return `as ${metadata.role}`;
+  }
+  return null;
+}
+
+// ─── ActivityFeed ─────────────────────────────────────────────────────────────
+function ActivityFeed({ projectId }) {
+  const { events, loading, error, refetch } = useActivity(projectId, {
+    limit: 20,
+    poll: true,
+  });
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, x: 20 }}
+      animate={{ opacity: 1, x: 0 }}
+      transition={{ duration: 0.5, delay: 0.5 }}
+      style={S.activityPanel}
+    >
+      <div style={S.panelHeader}>
+        <span style={S.panelTitle}>ACTIVITY LOG</span>
+        <span style={S.panelSub}>LIVE</span>
+        <div style={S.liveDot} />
+        <button onClick={refetch} style={S.refreshBtn} title="Refresh">
+          ↻
+        </button>
+      </div>
+
+      <div style={S.activityList}>
+        {loading && (
+          <div style={S.feedCenter}>
+            <Spinner size="sm" />
+          </div>
+        )}
+
+        {error && !loading && (
+          <div style={S.feedCenter}>
+            <span
+              style={{
+                color: "var(--muted)",
+                fontFamily: "var(--font-mono)",
+                fontSize: 9,
+                letterSpacing: 1,
+              }}
+            >
+              ⚠ {error}
+            </span>
+          </div>
+        )}
+
+        {!loading && !error && events.length === 0 && (
+          <div style={S.feedCenter}>
+            <span
+              style={{
+                color: "var(--muted)",
+                fontFamily: "var(--font-mono)",
+                fontSize: 9,
+                letterSpacing: 2,
+              }}
+            >
+              NO ACTIVITY YET
+            </span>
+          </div>
+        )}
+
+        {!loading &&
+          events.map((ev, i) => {
+            const cfg = ACTION_CFG[ev.action] || {
+              symbol: "·",
+              color: "var(--muted)",
+              verb: ev.action,
+            };
+            const actor = ev.user?.username || ev.user?.fullName || "UNKNOWN";
+            const meta = metaLabel(ev.action, ev.metadata);
+
+            return (
+              <motion.div
+                key={ev._id}
+                initial={{ opacity: 0, x: 10 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ duration: 0.25, delay: i * 0.04 }}
+                style={S.activityRow}
+              >
+                <span style={{ ...S.actSymbol, color: cfg.color }}>
+                  {cfg.symbol}
+                </span>
+                <div style={S.actContent}>
+                  <span style={S.actUser}>{actor.toUpperCase()}</span>
+                  <span style={S.actAction}> {cfg.verb} </span>
+                  {ev.target && (
+                    <span style={{ ...S.actTarget, color: cfg.color }}>
+                      {ev.target}
+                    </span>
+                  )}
+                  {meta && <span style={S.actMeta}> [{meta}]</span>}
+                </div>
+                <span style={S.actTime}>{relativeTime(ev.createdAt)}</span>
+              </motion.div>
+            );
+          })}
+      </div>
+    </motion.div>
+  );
+}
+
+// ─── StatCard ─────────────────────────────────────────────────────────────────
 function StatCard({ stat, index }) {
   return (
     <motion.div
@@ -161,6 +184,7 @@ function StatCard({ stat, index }) {
   );
 }
 
+// ─── ProjectCard ──────────────────────────────────────────────────────────────
 function ProjectCard({ project, index, onClick }) {
   const [hovered, setHovered] = useState(false);
   const pct =
@@ -186,7 +210,6 @@ function ProjectCard({ project, index, onClick }) {
         cursor: "pointer",
       }}
     >
-      {/* top accent line */}
       <motion.div
         animate={{ width: hovered ? "100%" : "32px" }}
         transition={{ duration: 0.3 }}
@@ -207,7 +230,6 @@ function ProjectCard({ project, index, onClick }) {
         </div>
         <p style={S.projDesc}>{project.description}</p>
 
-        {/* progress bar */}
         <div style={S.progWrap}>
           <div style={S.progTrack}>
             <motion.div
@@ -224,7 +246,6 @@ function ProjectCard({ project, index, onClick }) {
           <span style={S.progLabel}>{Math.round(pct)}%</span>
         </div>
 
-        {/* meta row */}
         <div style={S.projMeta}>
           <span style={S.projMetaItem}>◈ {project.memberCount} MEMBERS</span>
           <span style={S.projMetaItem}>▣ {project.taskCount} TASKS</span>
@@ -242,71 +263,30 @@ function ProjectCard({ project, index, onClick }) {
   );
 }
 
-function ActivityFeed() {
-  return (
-    <motion.div
-      initial={{ opacity: 0, x: 20 }}
-      animate={{ opacity: 1, x: 0 }}
-      transition={{ duration: 0.5, delay: 0.5 }}
-      style={S.activityPanel}
-    >
-      <div style={S.panelHeader}>
-        <span style={S.panelTitle}>ACTIVITY LOG</span>
-        <span style={S.panelSub}>LIVE</span>
-        <div style={S.liveDot} />
-      </div>
-      <div style={S.activityList}>
-        {MOCK_ACTIVITY.map((ev, i) => (
-          <motion.div
-            key={ev.id}
-            initial={{ opacity: 0, x: 10 }}
-            animate={{ opacity: 1, x: 0 }}
-            transition={{ duration: 0.3, delay: 0.55 + i * 0.05 }}
-            style={S.activityRow}
-          >
-            <span style={{ ...S.actSymbol, color: TYPE_COLOR[ev.type] }}>
-              {TYPE_SYMBOL[ev.type]}
-            </span>
-            <div style={S.actContent}>
-              <span style={S.actUser}>{ev.user}</span>
-              <span style={S.actAction}> {ev.action} </span>
-              <span style={{ ...S.actTarget, color: TYPE_COLOR[ev.type] }}>
-                {ev.target}
-              </span>
-            </div>
-            <span style={S.actTime}>{ev.time}</span>
-          </motion.div>
-        ))}
-      </div>
-    </motion.div>
-  );
-}
-
-// ── main page ─────────────────────────────────────────────────────────────────
-
-export default function DashboardPage({ activePage = "dashboard", projects = [], loading, onOpenProject, onCreateProject }) {
-  // Map raw backend projects to add formatting and mock stats if task info is not tracked yet
+// ─── DashboardPage ────────────────────────────────────────────────────────────
+export default function DashboardPage({
+  activePage = "dashboard",
+  projects = [],
+  loading,
+  onOpenProject,
+  onCreateProject,
+}) {
   const displayProjects = projects.map((p, idx) => {
-    // Generate some mock task progress so cards still show visual progress indicator
-    // while keeping core values (name, description, memberCount) completely dynamic.
     const mockTasks = [10, 15, 8, 20, 12, 6];
     const mockDone = [6, 15, 2, 10, 8, 1];
     const taskCount = mockTasks[idx % mockTasks.length];
     const doneCount = mockDone[idx % mockDone.length];
 
-    // Calculate a last active timestamp relative to updatedAt
     let lastActive = "JUST NOW";
     if (p.updatedAt) {
       const diffMs = Date.now() - new Date(p.updatedAt).getTime();
-      const diffHrs = Math.floor(diffMs / (1000 * 60 * 60));
+      const diffHrs = Math.floor(diffMs / 3_600_000);
       if (diffHrs >= 24) {
-        const days = Math.floor(diffHrs / 24);
-        lastActive = `${days}D AGO`;
+        lastActive = `${Math.floor(diffHrs / 24)}D AGO`;
       } else if (diffHrs > 0) {
         lastActive = `${diffHrs}H AGO`;
       } else {
-        const mins = Math.max(1, Math.floor(diffMs / (1000 * 60)));
-        lastActive = `${mins}M AGO`;
+        lastActive = `${Math.max(1, Math.floor(diffMs / 60_000))}M AGO`;
       }
     }
 
@@ -315,40 +295,36 @@ export default function DashboardPage({ activePage = "dashboard", projects = [],
       taskCount,
       doneCount,
       lastActive,
-      color: ["var(--phosphor)", "var(--amber)", "var(--red)", "var(--muted)"][idx % 4],
+      color: ["var(--phosphor)", "var(--amber)", "var(--red)", "var(--muted)"][
+        idx % 4
+      ],
     };
   });
 
-  // Calculate dynamic stats from real backend data
   const totalProjects = projects.length;
-  
-  // Calculate total unique members across all projects
-  const uniqueMembersSet = new Set();
-  projects.forEach((p) => {
-    p.members?.forEach((m) => {
-      const userId = m.user?._id || m.user || m;
-      if (userId) uniqueMembersSet.add(userId.toString());
-    });
-  });
-  const totalMembers = uniqueMembersSet.size;
 
-  // Aggregate completion rate
-  let totalTasks = 0;
-  let totalDone = 0;
+  const uniqueMembers = new Set();
+  projects.forEach((p) =>
+    p.members?.forEach((m) => {
+      const uid = m.user?._id || m.user || m;
+      if (uid) uniqueMembers.add(uid.toString());
+    }),
+  );
+
+  let totalTasks = 0,
+    totalDone = 0;
   displayProjects.forEach((p) => {
     totalTasks += p.taskCount;
     totalDone += p.doneCount;
   });
-  const avgCompletion = totalTasks > 0 ? Math.round((totalDone / totalTasks) * 100) : 0;
+  const avgCompletion =
+    totalTasks > 0 ? Math.round((totalDone / totalTasks) * 100) : 0;
 
   const dynamicStats = [
     {
       label: "ACTIVE PROJECTS",
       value: String(totalProjects).padStart(2, "0"),
-      delta: `${projects.filter(p => {
-        const diffMs = Date.now() - new Date(p.createdAt).getTime();
-        return diffMs < 7 * 24 * 60 * 60 * 1000;
-      }).length} CREATED THIS WEEK`,
+      delta: `${projects.filter((p) => Date.now() - new Date(p.createdAt).getTime() < 7 * 86_400_000).length} CREATED THIS WEEK`,
     },
     {
       label: "OPEN TASKS",
@@ -357,23 +333,41 @@ export default function DashboardPage({ activePage = "dashboard", projects = [],
     },
     {
       label: "TEAM MEMBERS",
-      value: String(totalMembers).padStart(2, "0"),
-      delta: "REAL MEMBER SYNC",
+      value: String(uniqueMembers.size).padStart(2, "0"),
+      delta: "ACROSS ALL PROJECTS",
     },
     {
       label: "COMPLETION RATE",
       value: `${avgCompletion}%`,
-      delta: `↑ ${totalDone} TASKS COMPLETED`,
+      delta: `${totalDone} TASKS DONE`,
     },
   ];
 
   const isProjectsView = activePage === "projects";
 
+  // Use the first project's ID for the activity feed on the dashboard.
+  // If in projects view, show the most recently updated project's feed.
+  const activityProjectId = projects[0]?._id ?? null;
+
   if (loading) {
     return (
-      <div style={{ ...S.page, justifyContent: "center", alignItems: "center", minHeight: "200px" }}>
+      <div
+        style={{
+          ...S.page,
+          justifyContent: "center",
+          alignItems: "center",
+          minHeight: "200px",
+        }}
+      >
         <Spinner size="lg" />
-        <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem", color: "var(--muted)", marginTop: "1rem" }}>
+        <span
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: "0.8rem",
+            color: "var(--muted)",
+            marginTop: "1rem",
+          }}
+        >
           RETRIEVING BACKEND METRICS...
         </span>
       </div>
@@ -382,7 +376,6 @@ export default function DashboardPage({ activePage = "dashboard", projects = [],
 
   return (
     <div style={S.page}>
-      {/* Page title */}
       <motion.div
         initial={{ opacity: 0, y: -12 }}
         animate={{ opacity: 1, y: 0 }}
@@ -394,7 +387,9 @@ export default function DashboardPage({ activePage = "dashboard", projects = [],
             {isProjectsView ? "PROJECT DIRECTORY" : "COMMAND CENTER"}
           </h1>
           <p style={S.pageSubtitle}>
-            {isProjectsView ? "REGISTRY // ACTIVE WORKSPACES" : "OVERVIEW // ALL ACTIVE OPERATIONS"}
+            {isProjectsView
+              ? "REGISTRY // ACTIVE WORKSPACES"
+              : "OVERVIEW // ALL ACTIVE OPERATIONS"}
           </p>
         </div>
         <button onClick={onCreateProject} style={S.newProjectBtn}>
@@ -402,7 +397,6 @@ export default function DashboardPage({ activePage = "dashboard", projects = [],
         </button>
       </motion.div>
 
-      {/* Stats row - hidden in Projects View */}
       {!isProjectsView && (
         <div style={S.statsGrid}>
           {dynamicStats.map((s, i) => (
@@ -411,14 +405,12 @@ export default function DashboardPage({ activePage = "dashboard", projects = [],
         </div>
       )}
 
-      {/* Main layout */}
       <div
         style={{
           ...S.mainGrid,
           gridTemplateColumns: isProjectsView ? "1fr" : "1fr 300px",
         }}
       >
-        {/* Project cards */}
         <div style={S.projectsSection}>
           <div style={S.sectionHeader}>
             <span style={S.sectionTitle}>
@@ -429,7 +421,9 @@ export default function DashboardPage({ activePage = "dashboard", projects = [],
           <div
             style={{
               ...S.projectsGrid,
-              gridTemplateColumns: isProjectsView ? "repeat(3, 1fr)" : "repeat(2, 1fr)",
+              gridTemplateColumns: isProjectsView
+                ? "repeat(3, 1fr)"
+                : "repeat(2, 1fr)",
             }}
           >
             {displayProjects.map((p, i) => (
@@ -443,14 +437,44 @@ export default function DashboardPage({ activePage = "dashboard", projects = [],
           </div>
         </div>
 
-        {/* Activity feed - hidden in Projects View */}
-        {!isProjectsView && <ActivityFeed />}
+        {/* Real activity feed — hidden in projects view */}
+        {!isProjectsView && activityProjectId && (
+          <ActivityFeed projectId={activityProjectId} />
+        )}
+
+        {!isProjectsView && !activityProjectId && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            style={{
+              ...S.activityPanel,
+              alignItems: "center",
+              justifyContent: "center",
+            }}
+          >
+            <div style={S.panelHeader}>
+              <span style={S.panelTitle}>ACTIVITY LOG</span>
+            </div>
+            <div style={S.feedCenter}>
+              <span
+                style={{
+                  color: "var(--muted)",
+                  fontFamily: "var(--font-mono)",
+                  fontSize: 9,
+                  letterSpacing: 2,
+                }}
+              >
+                CREATE A PROJECT TO SEE ACTIVITY
+              </span>
+            </div>
+          </motion.div>
+        )}
       </div>
     </div>
   );
 }
 
-// ── styles ────────────────────────────────────────────────────────────────────
+// ─── styles ───────────────────────────────────────────────────────────────────
 const S = {
   page: {
     display: "flex",
@@ -491,7 +515,6 @@ const S = {
     flexShrink: 0,
   },
 
-  // Stats
   statsGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(4, 1fr)",
@@ -539,10 +562,8 @@ const S = {
     opacity: 0.4,
   },
 
-  // Main 2-col
   mainGrid: {
     display: "grid",
-    gridTemplateColumns: "1fr 300px",
     gap: 20,
     flex: 1,
     minHeight: 0,
@@ -573,11 +594,9 @@ const S = {
   },
   projectsGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(2, 1fr)",
     gap: 12,
   },
 
-  // Project card
   projCard: {
     background: "var(--surface)",
     border: "1px solid var(--border)",
@@ -585,13 +604,8 @@ const S = {
     transition: "border-color 0.2s, box-shadow 0.2s",
     overflow: "hidden",
   },
-  projAccent: {
-    height: 2,
-    transition: "width 0.3s ease",
-  },
-  projBody: {
-    padding: "14px 16px 16px",
-  },
+  projAccent: { height: 2, transition: "width 0.3s ease" },
+  projBody: { padding: "14px 16px 16px" },
   projHeader: {
     display: "flex",
     justifyContent: "space-between",
@@ -633,10 +647,7 @@ const S = {
     borderRadius: 1,
     overflow: "hidden",
   },
-  progFill: {
-    height: "100%",
-    borderRadius: 1,
-  },
+  progFill: { height: "100%", borderRadius: 1 },
   progLabel: {
     fontFamily: "var(--font-mono)",
     fontSize: 9,
@@ -646,10 +657,7 @@ const S = {
     width: 30,
     textAlign: "right",
   },
-  projMeta: {
-    display: "flex",
-    gap: 12,
-  },
+  projMeta: { display: "flex", gap: 12 },
   projMetaItem: {
     fontFamily: "var(--font-mono)",
     fontSize: 8,
@@ -696,10 +704,26 @@ const S = {
     boxShadow: "0 0 5px var(--phosphor)",
     animation: "pulse 2s ease-in-out infinite",
   },
+  refreshBtn: {
+    background: "none",
+    border: "none",
+    color: "var(--muted)",
+    cursor: "pointer",
+    fontSize: 12,
+    padding: "0 2px",
+    fontFamily: "var(--font-mono)",
+    transition: "color 0.15s",
+  },
   activityList: {
     flex: 1,
     overflowY: "auto",
     padding: "8px 0",
+  },
+  feedCenter: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "32px 16px",
   },
   activityRow: {
     display: "flex",
@@ -727,12 +751,15 @@ const S = {
     fontWeight: "bold",
     letterSpacing: 1,
   },
-  actAction: {
-    color: "var(--muted)",
-  },
+  actAction: { color: "var(--muted)" },
   actTarget: {
     letterSpacing: 0.5,
     wordBreak: "break-word",
+  },
+  actMeta: {
+    color: "var(--muted)",
+    fontSize: 8,
+    letterSpacing: 1,
   },
   actTime: {
     fontFamily: "var(--font-mono)",
