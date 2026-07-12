@@ -2,6 +2,7 @@ import { useState } from "react";
 import { motion } from "framer-motion";
 import { Spinner } from "../../components/ui";
 import { useActivity } from "../../hooks/index.js";
+import { useAuth } from "../../context/authcontext.jsx";
 
 // ─── Action config ────────────────────────────────────────────────────────────
 const ACTION_CFG = {
@@ -271,6 +272,10 @@ export default function DashboardPage({
   onOpenProject,
   onCreateProject,
 }) {
+  const { user } = useAuth();
+  const canCreateProject =
+    user?.role === "admin" || user?.role === "project_admin";
+
   const displayProjects = projects.map((p, idx) => {
     const mockTasks = [10, 15, 8, 20, 12, 6];
     const mockDone = [6, 15, 2, 10, 8, 1];
@@ -392,9 +397,11 @@ export default function DashboardPage({
               : "OVERVIEW // ALL ACTIVE OPERATIONS"}
           </p>
         </div>
-        <button onClick={onCreateProject} style={S.newProjectBtn}>
-          + INIT PROJECT
-        </button>
+        {canCreateProject && (
+          <button onClick={onCreateProject} style={S.newProjectBtn}>
+            + INIT PROJECT
+          </button>
+        )}
       </motion.div>
 
       {!isProjectsView && (

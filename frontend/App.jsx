@@ -12,6 +12,7 @@ import ResetPasswordPage from "./pages/auth/ResetPasswordPage.jsx";
 import VerifyEmailPage from "./pages/auth/VerifyEmailPage.jsx";
 import DashboardPage from "./pages/app/DashboardPage.jsx";
 import ProjectPage from "./pages/app/ProjectPage.jsx";
+import MyTasksPage from "./pages/app/MyTasksPage.jsx";
 
 // ── modals ────────────────────────────────────────────────────────────────────
 import CreateProjectModal from "./components/ui/CreateProjectModal.jsx";
@@ -252,12 +253,7 @@ function AppRouter() {
           />
         );
       case "tasks":
-        return (
-          <PlaceholderPage
-            label="MY TASKS"
-            sub="PERSONAL TASK VIEW — COMING SOON"
-          />
-        );
+        return <MyTasksPage />;
       case "notes":
         return (
           <PlaceholderPage

@@ -1,6 +1,6 @@
 import path from "path";
 import fs from "fs";
-import { Task, SubTask, Activity } from "../models/index.js";
+import { Task, SubTask, Activity, Project } from "../models/index.js";
 import { ApiError } from "../utils/api-error.js";
 import { ApiResponses } from "../utils/api-responses.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -52,6 +52,51 @@ export const getProjectTasks = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(new ApiResponses(200, { tasks: tasksWithStats }, "Tasks fetched"));
+});
+
+// ─── GET /tasks/me ────────────────────────────────────────────────────────────
+// Cross-project: every task assigned to the requesting user, with that user's
+// role in each parent project so the client can decide edit rights.
+export const getMyTasks = asyncHandler(async (req, res) => {
+  const userId = req.user._id;
+
+  const tasks = await Task.find({ assignedTo: userId })
+    .populate("assignedTo", "username fullName avatar")
+    .populate("createdBy", "username fullName avatar")
+    .populate("project", "name")
+    .populate({ path: "subTasks", select: "title isCompleted" })
+    .sort({ project: 1, createdAt: -1 })
+    .lean();
+
+  // One query for the user's role in every project these tasks belong to.
+  const projectIds = [
+    ...new Set(tasks.map((t) => t.project?._id?.toString()).filter(Boolean)),
+  ];
+  const projects = await Project.find({
+    _id: { $in: projectIds },
+    "members.user": userId,
+  })
+    .select("members")
+    .lean();
+
+  const roleByProject = new Map();
+  projects.forEach((p) => {
+    const m = p.members.find((mm) => mm.user.toString() === userId.toString());
+    if (m) roleByProject.set(p._id.toString(), m.role);
+  });
+
+  const tasksWithMeta = tasks.map((t) => ({
+    ...t,
+    myRole: roleByProject.get(t.project?._id?.toString()) ?? "member",
+    subTaskStats: {
+      total: t.subTasks?.length ?? 0,
+      completed: t.subTasks?.filter((s) => s.isCompleted).length ?? 0,
+    },
+  }));
+
+  return res
+    .status(200)
+    .json(new ApiResponses(200, { tasks: tasksWithMeta }, "My tasks fetched"));
 });
 
 // ─── POST /tasks/:projectId ───────────────────────────────────────────────────
@@ -119,6 +164,38 @@ export const updateTask = asyncHandler(async (req, res) => {
   const task = await Task.findOne({ _id: taskId, project: req.project._id });
   if (!task) {
     throw new ApiError(404, "Task not found");
+  }
+
+  // ── Authorization ─────────────────────────────────────────────────────────
+  // Managers (project_admin/admin) may edit any field. The task's assignee may
+  // change status ONLY. No one else may modify the task. This keeps task
+  // creation/assignment manager-only while letting members work their queue.
+  const membership = req.project.members.find(
+    (m) => m.user.toString() === req.user._id.toString(),
+  );
+  const isManager =
+    membership?.role === UserRolesEnum.PROJECT_ADMIN ||
+    membership?.role === UserRolesEnum.ADMIN;
+  const isAssignee =
+    task.assignedTo && task.assignedTo.toString() === req.user._id.toString();
+
+  if (!isManager) {
+    if (!isAssignee) {
+      throw new ApiError(403, "You are not allowed to update this task");
+    }
+    if (
+      title !== undefined ||
+      description !== undefined ||
+      assignedTo !== undefined
+    ) {
+      throw new ApiError(
+        403,
+        "You can only change the status of your assigned task",
+      );
+    }
+    if (status === undefined) {
+      throw new ApiError(400, "No status provided");
+    }
   }
 
   if (assignedTo) {
