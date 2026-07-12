@@ -37,7 +37,7 @@
   --signal:         var(--phosphor);
   --signal-dim:     rgba(0,217,126,0.10);
   --signal-glow:    rgba(0,217,126,0.22);
-  --amber-dim:      rgba(255,170,0,0.12);
+  --amber-dim:      rgba(245, 166, 35, 0.12);
   --ice:            #4db8ff;
   --ice-dim:        rgba(77,184,255,0.10);
   --rose:           var(--red);
@@ -48,9 +48,9 @@
   --slate-60:       #1c231c;
 
   /* ── Surface aliases (auth pages) ── */
-  --bg-danger:      rgba(255,60,60,0.08);
-  --bg-warning:     rgba(255,170,0,0.08);
-  --bg-success:     rgba(0,255,65,0.08);
+  --bg-danger:      rgba(255, 87, 87, 0.08);
+  --bg-warning:     rgba(245, 166, 35, 0.08);
+  --bg-success:     rgba(0, 217, 126, 0.08);
   --text-danger:    var(--red);
   --text-warning:   var(--amber);
   --text-success:   var(--phosphor);
@@ -76,16 +76,16 @@
   --shadow-md:   0 4px 16px rgba(0,0,0,0.5);
   --shadow-lg:   0 8px 32px rgba(0,0,0,0.6);
   --shadow-xl:   0 16px 64px rgba(0,0,0,0.7);
-  --glow-signal: 0 0 20px rgba(0,255,65,0.18);
-  --glow-amber:  0 0 20px rgba(255,170,0,0.18);
+  --glow-signal: 0 0 20px rgba(0, 217, 126, 0.18);
+  --glow-amber:  0 0 20px rgba(245, 166, 35, 0.18);
 
   /* ── Status token map ── */
   --status-todo:        var(--muted);
   --status-todo-bg:     rgba(74,92,74,0.12);
   --status-progress:    var(--amber);
-  --status-progress-bg: var(--amber-dim);
+  --status-progress-bg: rgba(245, 166, 35, 0.12);
   --status-done:        var(--phosphor);
-  --status-done-bg:     var(--signal-dim);
+  --status-done-bg:     rgba(0, 217, 126, 0.1);
 
   /* ── Component tokens (used in widget critique) ── */
   --text-primary:   var(--text-bright);
