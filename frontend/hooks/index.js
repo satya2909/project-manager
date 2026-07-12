@@ -5,8 +5,8 @@ import {
   notesApi,
   activityApi,
   parseApiError,
-} from "../../api";
-//export { Spinner, InlineError, InlineSuccess } from "./primitive.jsx";
+} from "../api";
+export { Spinner, InlineError, InlineSuccess } from "./primitive.jsx";
 
 // ─── useProjects ──────────────────────────────────────────────────────────────
 export function useProjects() {

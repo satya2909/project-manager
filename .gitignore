@@ -1,2 +1,5 @@
 .env
 node_modules/
+CLAUDE.md
+frontend/dist/assets/
+docs/superpowers
