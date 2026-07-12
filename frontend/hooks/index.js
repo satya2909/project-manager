@@ -256,6 +256,59 @@ export function useTasks(projectId) {
   };
 }
 
+// ─── useMyTasks ───────────────────────────────────────────────────────────────
+// Cross-project view of tasks assigned to the current user. Every task here is
+// assigned to the caller, so status changes are always permitted server-side.
+function normalizeMyTask(t) {
+  const a = t.assignedTo;
+  return {
+    ...t,
+    assignee: a
+      ? { ...a, _id: a._id, name: a.fullName || a.username || "Unknown" }
+      : null,
+  };
+}
+
+export function useMyTasks() {
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetch = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await tasksApi.listMine();
+      setTasks((data?.data?.tasks ?? []).map(normalizeMyTask));
+    } catch (err) {
+      setError(parseApiError(err));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetch();
+  }, [fetch]);
+
+  // Optimistic status change. On failure, refetch to restore authoritative
+  // state (a status-only change is safe to reload wholesale).
+  const updateStatus = async (projectId, taskId, status) => {
+    setTasks((prev) =>
+      prev.map((t) => (t._id === taskId ? { ...t, status } : t)),
+    );
+    try {
+      await tasksApi.update(projectId, taskId, { status });
+      return { success: true };
+    } catch (err) {
+      await fetch();
+      return { success: false, error: parseApiError(err) };
+    }
+  };
+
+  return { tasks, loading, error, refetch: fetch, updateStatus, setTasks };
+}
+
 // ─── useTask (single) ─────────────────────────────────────────────────────────
 export function useTask(projectId, taskId) {
   const [task, setTask] = useState(null);
