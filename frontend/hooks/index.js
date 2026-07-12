@@ -1,12 +1,13 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   projectsApi,
   tasksApi,
   notesApi,
   activityApi,
   parseApiError,
-} from "../../api";
-//export { Spinner, InlineError, InlineSuccess } from "./primitive.jsx";
+} from "../api";
+
+
 
 // ─── useProjects ──────────────────────────────────────────────────────────────
 export function useProjects() {
@@ -173,6 +174,7 @@ export function useTasks(projectId) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const pendingUpdates = useRef(new Map());
 
   const fetch = useCallback(async () => {
     if (!projectId) return;
@@ -195,26 +197,40 @@ export function useTasks(projectId) {
   const createTask = async (payload) => {
     try {
       const { data } = await tasksApi.create(projectId, payload);
-      setTasks((prev) => [...prev, data?.data?.task]);
-      return { success: true, data: data?.data?.task };
+      const newTask = data?.data?.task;
+      setTasks((prev) => [...prev, newTask]);
+      return { success: true, data: newTask };
     } catch (err) {
       return { success: false, error: parseApiError(err) };
     }
   };
 
   const updateTask = async (taskId, payload) => {
+    const updateKey = `${taskId}_${Date.now()}`;
+    pendingUpdates.current.set(taskId, updateKey);
+
     setTasks((prev) =>
       prev.map((t) => (t._id === taskId ? { ...t, ...payload } : t)),
     );
+
     try {
       const { data } = await tasksApi.update(projectId, taskId, payload);
-      setTasks((prev) =>
-        prev.map((t) => (t._id === taskId ? { ...t, ...data?.data?.task } : t)),
-      );
+      const serverTask = data?.data?.task;
+
+      if (pendingUpdates.current.get(taskId) === updateKey) {
+        setTasks((prev) =>
+          prev.map((t) => (t._id === taskId ? { ...t, ...serverTask } : t)),
+        );
+      }
+
       return { success: true };
     } catch (err) {
-      fetch();
+      await fetch();
       return { success: false, error: parseApiError(err) };
+    } finally {
+      if (pendingUpdates.current.get(taskId) === updateKey) {
+        pendingUpdates.current.delete(taskId);
+      }
     }
   };
 

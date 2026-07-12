@@ -153,6 +153,14 @@ export default function KanbanBoard({
   // teleport the card back to its original column mid-gesture.
   const isDragging = useRef(false);
 
+  // The column a card started in when the drag began. handleDragOver mutates
+  // `items` mid-gesture (moving the card + rewriting its status), so by drop
+  // time `items` no longer knows where the card came from. We capture the
+  // origin here so handleDragEnd can reliably detect a cross-column move and
+  // persist it — otherwise the move lives only in local state and reverts on
+  // the next tasks-prop change (e.g. creating a task).
+  const dragOrigin = useRef(null);
+
   // ── THE FIX: sync items whenever the tasks prop changes ───────────────────
   // This is what was missing. The original lazy useState initialiser only ran
   // once at mount, so when useTasks resolved asynchronously the board stayed
@@ -182,6 +190,7 @@ export default function KanbanBoard({
   const handleDragStart = ({ active }) => {
     isDragging.current = true;
     const colId = findColumnOfTask(active.id);
+    dragOrigin.current = colId ?? null;
     if (colId) {
       const task = items[colId].find((t) => t._id === active.id);
       setActiveTask(task);
@@ -213,9 +222,14 @@ export default function KanbanBoard({
     isDragging.current = false;
     setActiveTask(null);
 
+    // The column the card started in — captured at drag start, before
+    // handleDragOver mutated `items`. This is our source of truth for whether
+    // a real cross-column move happened.
+    const fromCol = dragOrigin.current;
+    dragOrigin.current = null;
+
     if (!over) return;
 
-    const fromCol = findColumnOfTask(active.id);
     const toCol = COLUMNS.find((c) => c.id === over.id)
       ? over.id
       : findColumnOfTask(over.id);
@@ -233,19 +247,17 @@ export default function KanbanBoard({
       return;
     }
 
-    // Cross-column move: notify parent so it can persist the status change
-    const movedTask = Object.values(items)
-      .flat()
-      .find((t) => t._id === active.id);
-
-    if (movedTask && toCol !== movedTask.status) {
-      onTaskMove?.(active.id, toCol);
-    }
+    // Cross-column move: the card's new column differs from where it started,
+    // so persist the status change. `items` already shows it in the
+    // destination (from handleDragOver), which is why we compare against the
+    // captured origin column rather than the mutated items.
+    onTaskMove?.(active.id, toCol);
   };
 
   const handleDragCancel = () => {
     // Drag cancelled (e.g. Escape key): release the guard and re-sync
     isDragging.current = false;
+    dragOrigin.current = null;
     setActiveTask(null);
     setItems(groupByStatus(tasks));
   };
