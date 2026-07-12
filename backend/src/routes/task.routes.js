@@ -79,7 +79,8 @@ router
   )
   .put(
     attachProject,
-    checkProjectRole(UserRolesEnum.PROJECT_ADMIN),
+    // Authorization is field-level inside the controller: managers may edit any
+    // field; a task's assignee may change status only.
     [
       param("taskId").isMongoId().withMessage("Invalid task ID"),
       body("title")

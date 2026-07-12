@@ -166,6 +166,38 @@ export const updateTask = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Task not found");
   }
 
+  // ── Authorization ─────────────────────────────────────────────────────────
+  // Managers (project_admin/admin) may edit any field. The task's assignee may
+  // change status ONLY. No one else may modify the task. This keeps task
+  // creation/assignment manager-only while letting members work their queue.
+  const membership = req.project.members.find(
+    (m) => m.user.toString() === req.user._id.toString(),
+  );
+  const isManager =
+    membership?.role === UserRolesEnum.PROJECT_ADMIN ||
+    membership?.role === UserRolesEnum.ADMIN;
+  const isAssignee =
+    task.assignedTo && task.assignedTo.toString() === req.user._id.toString();
+
+  if (!isManager) {
+    if (!isAssignee) {
+      throw new ApiError(403, "You are not allowed to update this task");
+    }
+    if (
+      title !== undefined ||
+      description !== undefined ||
+      assignedTo !== undefined
+    ) {
+      throw new ApiError(
+        403,
+        "You can only change the status of your assigned task",
+      );
+    }
+    if (status === undefined) {
+      throw new ApiError(400, "No status provided");
+    }
+  }
+
   if (assignedTo) {
     const isMember = req.project.members.some(
       (m) => m.user.toString() === assignedTo,
