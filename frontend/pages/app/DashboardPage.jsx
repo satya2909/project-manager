@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { motion } from "framer-motion";
-import { Spinner } from "../../components/ui";
+import { Spinner } from "../../components/ui/primitive.jsx";
 import { useActivity } from "../../hooks/index.js";
 import { useAuth } from "../../context/authcontext.jsx";
 

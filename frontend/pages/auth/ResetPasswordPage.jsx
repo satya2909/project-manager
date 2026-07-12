@@ -8,7 +8,7 @@ import {
   Check,
 } from "lucide-react";
 import { useAuth } from "../../context/authcontext";
-import { InlineError, InlineSuccess, Spinner } from "../../components/ui";
+import { InlineError, InlineSuccess, Spinner } from "../../components/ui/primitive.jsx";
 
 function getStrength(password) {
   if (!password) return { score: 0, label: "", color: "" };

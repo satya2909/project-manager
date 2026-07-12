@@ -2,7 +2,7 @@ import { useEffect, useState, useRef } from "react";
 import { CheckCircle, XCircle, ArrowRight, RotateCcw } from "lucide-react";
 import { authApi } from "../../api";
 import { useAuth } from "../../context/authcontext";
-import { Spinner } from "../../components/ui";
+import { Spinner } from "../../components/ui/primitive.jsx";
 
 const STATE = { LOADING: "loading", SUCCESS: "success", ERROR: "error" };
 

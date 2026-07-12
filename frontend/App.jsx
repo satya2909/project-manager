@@ -134,7 +134,7 @@ function AppRouter() {
     if (parts[0] === "projects" && parts[1]) {
       return { page: "project", projectId: parts[1] };
     }
-    const valid = ["dashboard", "projects", "tasks", "notes", "members"];
+    const valid = ["dashboard", "projects", "tasks"];
     if (valid.includes(parts[0])) return { page: parts[0], projectId: null };
     return { page: "dashboard", projectId: null };
   };
@@ -254,17 +254,6 @@ function AppRouter() {
         );
       case "tasks":
         return <MyTasksPage />;
-      case "notes":
-        return (
-          <PlaceholderPage
-            label="NOTES"
-            sub="GLOBAL NOTES VIEW — COMING SOON"
-          />
-        );
-      case "members":
-        return (
-          <PlaceholderPage label="TEAM" sub="ORGANISATION VIEW — COMING SOON" />
-        );
       default:
         return <PlaceholderPage label="404" sub="PAGE NOT FOUND" />;
     }

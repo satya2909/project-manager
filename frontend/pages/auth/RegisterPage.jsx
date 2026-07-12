@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Eye, EyeOff, ArrowRight, UserPlus, Check } from "lucide-react";
 import { useAuth } from "../../context/authcontext";
-import { InlineError, InlineSuccess, Spinner } from "../../components/ui";
+import { InlineError, InlineSuccess, Spinner } from "../../components/ui/primitive.jsx";
 
 // ─── PASSWORD STRENGTH ────────────────────────────────────────────────────────
 function getStrength(password) {

@@ -5,8 +5,6 @@ const NAV_ITEMS = [
   { id: "dashboard", label: "DASHBOARD", icon: GridIcon },
   { id: "projects", label: "PROJECTS", icon: FolderIcon },
   { id: "tasks", label: "MY TASKS", icon: TaskIcon },
-  { id: "notes", label: "NOTES", icon: NoteIcon },
-  { id: "members", label: "TEAM", icon: TeamIcon },
 ];
 
 // ─── Icons ────────────────────────────────────────────────────────────────────
@@ -73,46 +71,6 @@ function TaskIcon() {
       />
       <path
         d="M4 5h8M4 8h8M4 11h5"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="square"
-      />
-    </svg>
-  );
-}
-function NoteIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-      <rect
-        x="2"
-        y="1"
-        width="12"
-        height="14"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
-      <path
-        d="M5 5h6M5 8h6M5 11h3"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="square"
-      />
-    </svg>
-  );
-}
-function TeamIcon() {
-  return (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-      <circle cx="6" cy="5" r="3" stroke="currentColor" strokeWidth="1.5" />
-      <path
-        d="M1 14c0-3 2-5 5-5s5 2 5 5"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="square"
-      />
-      <circle cx="12" cy="5" r="2" stroke="currentColor" strokeWidth="1.5" />
-      <path
-        d="M12 10c2 0 3 1.5 3 4"
         stroke="currentColor"
         strokeWidth="1.5"
         strokeLinecap="square"

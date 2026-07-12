@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ArrowRight, ArrowLeft, Mail, Send } from "lucide-react";
 import { useAuth } from "../../context/authcontext";
-import { InlineError, Spinner } from "../../components/ui";
+import { InlineError, Spinner } from "../../components/ui/primitive.jsx";
 
 export default function ForgotPasswordPage({ onNavigate }) {
   const { forgotPassword } = useAuth();
