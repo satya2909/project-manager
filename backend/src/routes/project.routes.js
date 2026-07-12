@@ -14,6 +14,7 @@ import {
 import {
   verifyJWT,
   checkProjectRole,
+  checkGlobalRole,
 } from "../middlewares/auth.middlewares.js";
 import { attachProject } from "../middlewares/project.middlewares.js";
 import { validate } from "../middlewares/validator.middlewares.js";
@@ -30,6 +31,7 @@ router
   .route("/")
   .get(getUserProjects)
   .post(
+    checkGlobalRole(UserRolesEnum.PROJECT_ADMIN),
     [
       body("name")
         .trim()

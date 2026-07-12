@@ -26,7 +26,7 @@ export function AuthProvider({ children }) {
     setLoading(true);
     try {
       const { data } = await authApi.currentUser();
-      setUser(data?.data ?? null);
+      setUser(data?.data?.user ?? null);
     } catch {
       setUser(null);
       clearAccessToken();

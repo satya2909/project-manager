@@ -145,6 +145,7 @@ export default function KanbanBoard({
   onTaskMove,
   onTaskClick,
   onCreateTask,
+  canCreate = true,
 }) {
   const [items, setItems] = useState(() => groupByStatus(tasks));
   const [activeTask, setActiveTask] = useState(null);
@@ -272,9 +273,11 @@ export default function KanbanBoard({
           <span style={boardStyles.boardTitleText}>TASK MATRIX</span>
           <span style={boardStyles.boardCount}>[{totalTasks} TOTAL]</span>
         </div>
-        <button onClick={onCreateTask} style={boardStyles.addBtn}>
-          + NEW TASK
-        </button>
+        {canCreate && (
+          <button onClick={onCreateTask} style={boardStyles.addBtn}>
+            + NEW TASK
+          </button>
+        )}
       </div>
 
       {/* Kanban grid */}
