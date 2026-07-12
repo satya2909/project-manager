@@ -2,6 +2,7 @@ import { Router } from "express";
 import { body, param } from "express-validator";
 import {
   getProjectTasks,
+  getMyTasks,
   createTask,
   getTaskById,
   updateTask,
@@ -26,6 +27,10 @@ const router = Router();
 // All task routes require authentication + project membership
 // attachProject handles both — it verifies JWT-user is a member
 router.use(verifyJWT);
+
+// ─── /tasks/me ────────────────────────────────────────────────────────────────
+// MUST be declared before "/:projectId" so "me" is not parsed as a project id.
+router.get("/me", getMyTasks);
 
 // ─── /tasks/:projectId ────────────────────────────────────────────────────────
 
