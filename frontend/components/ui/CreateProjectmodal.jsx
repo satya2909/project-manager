@@ -155,12 +155,12 @@ export default function CreateProjectModal({ isOpen, onClose, onSubmit }) {
                     borderColor: errors.name
                       ? "var(--red)"
                       : form.name
-                        ? "var(--phosphor-dim)"
+                        ? "rgba(0, 217, 126, 0.3)"
                         : "var(--border)",
                     boxShadow: errors.name
-                      ? "0 0 8px rgba(255,60,60,0.15)"
+                      ? "0 0 8px rgba(255, 87, 87, 0.15)"
                       : form.name
-                        ? "0 0 8px rgba(0,255,65,0.08)"
+                        ? "0 0 8px rgba(0, 217, 126, 0.1)"
                         : "none",
                   }}
                   maxLength={60}
@@ -180,10 +180,10 @@ export default function CreateProjectModal({ isOpen, onClose, onSubmit }) {
                     ...M.input,
                     ...M.textarea,
                     borderColor: form.description
-                      ? "var(--phosphor-dim)"
+                      ? "rgba(0, 217, 126, 0.3)"
                       : "var(--border)",
                     boxShadow: form.description
-                      ? "0 0 8px rgba(0,255,65,0.08)"
+                      ? "0 0 8px rgba(0, 217, 126, 0.1)"
                       : "none",
                   }}
                   maxLength={500}
@@ -240,10 +240,12 @@ const M = {
     left: "50%",
     transform: "translate(-50%,-50%)",
     width: 480,
-    background: "var(--surface)",
+    background: "linear-gradient(135deg, var(--surface) 0%, rgba(15, 18, 15, 0.8) 100%)",
     border: "1px solid var(--border)",
     zIndex: 1001,
-    fontFamily: "var(--font-mono)",
+    fontFamily: "var(--font-sans)",
+    boxShadow: "0 20px 60px rgba(0, 0, 0, 0.4), 0 0 1px rgba(0, 217, 126, 0.1)",
+    borderRadius: "12px",
   },
   corner: {
     position: "absolute",
@@ -264,20 +266,22 @@ const M = {
   headerIcon: {
     width: 32,
     height: 32,
-    background: "rgba(0,255,65,0.1)",
-    border: "1px solid var(--phosphor)",
+    background: "rgba(0, 217, 126, 0.15)",
+    border: "1px solid rgba(0, 217, 126, 0.3)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     color: "var(--phosphor)",
     fontSize: 14,
-    boxShadow: "0 0 10px rgba(0,255,65,0.2)",
+    boxShadow: "0 0 10px rgba(0, 217, 126, 0.15)",
+    borderRadius: "6px",
   },
   title: {
     color: "var(--text)",
-    fontSize: 12,
-    letterSpacing: 3,
-    fontWeight: "bold",
+    fontSize: 13,
+    letterSpacing: 2,
+    fontWeight: 600,
+    fontFamily: "var(--font-sans)",
   },
   subtitle: {
     color: "var(--muted)",
@@ -311,9 +315,11 @@ const M = {
     position: "relative",
   },
   label: {
-    fontSize: 9,
-    letterSpacing: 2,
+    fontSize: 10,
+    letterSpacing: 1,
     color: "var(--muted)",
+    fontFamily: "var(--font-sans)",
+    fontWeight: 500,
   },
   required: {
     color: "var(--red)",
@@ -322,14 +328,15 @@ const M = {
     background: "var(--bg)",
     border: "1px solid var(--border)",
     color: "var(--text)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 11,
-    letterSpacing: 1,
+    fontFamily: "var(--font-sans)",
+    fontSize: 12,
+    letterSpacing: 0,
     padding: "10px 12px",
     outline: "none",
-    transition: "border-color 0.15s, box-shadow 0.15s",
+    transition: "border-color 160ms ease, box-shadow 160ms ease",
     width: "100%",
     boxSizing: "border-box",
+    borderRadius: "8px",
   },
   textarea: {
     resize: "vertical",
@@ -362,26 +369,31 @@ const M = {
     padding: "14px 20px",
   },
   cancelBtn: {
-    background: "none",
+    background: "transparent",
     border: "1px solid var(--border)",
     color: "var(--muted)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 9,
-    letterSpacing: 2,
-    padding: "9px 18px",
+    fontFamily: "var(--font-sans)",
+    fontSize: 11,
+    fontWeight: 500,
+    letterSpacing: 1,
+    padding: "10px 20px",
     cursor: "pointer",
-    transition: "border-color 0.15s",
+    transition: "all 160ms cubic-bezier(0.16, 1, 0.3, 1)",
+    borderRadius: "8px",
   },
   submitBtn: {
-    background: "rgba(0,255,65,0.08)",
-    border: "1px solid var(--phosphor)",
+    background: "linear-gradient(135deg, rgba(0, 217, 126, 0.2), rgba(0, 191, 120, 0.1))",
+    border: "1px solid rgba(0, 217, 126, 0.4)",
     color: "var(--phosphor)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 9,
-    letterSpacing: 2,
-    padding: "9px 20px",
+    fontFamily: "var(--font-sans)",
+    fontSize: 11,
+    fontWeight: 600,
+    letterSpacing: 1,
+    padding: "10px 22px",
     cursor: "pointer",
-    transition: "background 0.15s, box-shadow 0.15s",
+    transition: "all 160ms cubic-bezier(0.16, 1, 0.3, 1)",
+    borderRadius: "8px",
+    boxShadow: "0 4px 12px rgba(0, 217, 126, 0.2)",
   },
   spinner: {
     animation: "pulse 1s ease-in-out infinite",

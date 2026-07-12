@@ -47,7 +47,7 @@ export default function TaskCard({ task, onClick }) {
           rotate: isDragging ? 2 : 0,
           scale: isDragging ? 1.04 : 1,
           boxShadow: isDragging
-            ? "0 16px 40px rgba(0,0,0,0.6), 0 0 20px rgba(0,255,65,0.2)"
+            ? "0 16px 40px rgba(0,0,0,0.6), 0 0 20px rgba(0, 217, 126, 0.2)"
             : "0 2px 8px rgba(0,0,0,0.3)",
           zIndex: isDragging ? 50 : 1,
         }}
@@ -138,14 +138,15 @@ export default function TaskCard({ task, onClick }) {
 
 const cardStyles = {
   card: {
-    background: "var(--surface-raised)",
+    background: "linear-gradient(135deg, var(--surface-raised) 0%, rgba(20, 24, 20, 0.6) 100%)",
     border: "1px solid var(--border)",
-    borderRadius: "var(--r-md)",
+    borderRadius: "var(--r-lg)",
     padding: "0 0 12px",
     marginBottom: 8,
     position: "relative",
     overflow: "hidden",
-    transition: "border-color 0.15s",
+    transition: "border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease",
+    boxShadow: "0 2px 6px rgba(0, 0, 0, 0.2)",
   },
   statusBar: {
     height: 3,
@@ -181,21 +182,22 @@ const cardStyles = {
   },
   title: {
     color: "var(--text)",
-    fontSize: 12,
-    letterSpacing: 0.5,
+    fontSize: 13,
+    letterSpacing: 0,
     lineHeight: 1.4,
     padding: "0 12px",
     margin: "0 0 6px",
-    fontFamily: "var(--font-mono)",
-    fontWeight: "bold",
+    fontFamily: "var(--font-sans)",
+    fontWeight: 600,
   },
   desc: {
     color: "var(--muted)",
-    fontSize: 10,
+    fontSize: 11,
     lineHeight: 1.5,
     padding: "0 12px",
     margin: "0 0 10px",
-    fontFamily: "var(--font-mono)",
+    fontFamily: "var(--font-sans)",
+    fontWeight: 400,
     display: "-webkit-box",
     WebkitLineClamp: 2,
     WebkitBoxOrient: "vertical",
@@ -217,9 +219,10 @@ const cardStyles = {
   },
   progressLabel: {
     color: "var(--muted)",
-    fontSize: 8,
-    letterSpacing: 2,
-    fontFamily: "var(--font-mono)",
+    fontSize: 9,
+    letterSpacing: 0.5,
+    fontFamily: "var(--font-sans)",
+    fontWeight: 500,
   },
   footer: {
     display: "flex",
@@ -236,15 +239,15 @@ const cardStyles = {
   assigneeAvatar: {
     width: 18,
     height: 18,
-    background: "rgba(0,255,65,0.12)",
-    border: "1px solid rgba(0,255,65,0.3)",
+    background: "rgba(0, 217, 126, 0.12)",
+    border: "1px solid rgba(0, 217, 126, 0.3)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
     color: "var(--phosphor)",
     fontSize: 8,
-    fontWeight: "bold",
-    fontFamily: "var(--font-mono)",
+    fontWeight: 700,
+    fontFamily: "var(--font-sans)",
     lineHeight: "18px",
     textAlign: "center",
   },

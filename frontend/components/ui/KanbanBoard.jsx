@@ -53,8 +53,8 @@ function DroppableColumn({ column, tasks, onTaskClick }) {
               column.id === "todo"
                 ? "rgba(120,120,120,0.15)"
                 : column.id === "in_progress"
-                  ? "rgba(255,170,0,0.15)"
-                  : "rgba(0,255,65,0.15)"
+                  ? "rgba(245, 166, 35, 0.15)"
+                  : "rgba(0, 217, 126, 0.15)"
             }`
           : "none",
       }}
@@ -328,16 +328,22 @@ const boardStyles = {
     letterSpacing: 2,
   },
   addBtn: {
-    background: "rgba(0,255,65,0.08)",
-    border: "1px solid var(--phosphor)",
-    borderRadius: "var(--r-md)",
+    background: "linear-gradient(135deg, rgba(0, 217, 126, 0.15), rgba(0, 191, 120, 0.08))",
+    border: "1px solid rgba(0, 217, 126, 0.3)",
+    borderRadius: "var(--r-lg)",
     color: "var(--phosphor)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 10,
-    letterSpacing: 2,
-    padding: "8px 16px",
+    fontFamily: "var(--font-sans)",
+    fontSize: 12,
+    fontWeight: 600,
+    letterSpacing: 1,
+    padding: "10px 18px",
     cursor: "pointer",
-    transition: "background 0.15s, box-shadow 0.15s",
+    transition: "all 160ms cubic-bezier(0.16, 1, 0.3, 1)",
+  },
+  addBtn_hover: {
+    background: "linear-gradient(135deg, rgba(0, 217, 126, 0.25), rgba(0, 191, 120, 0.15))",
+    border: "1px solid rgba(0, 217, 126, 0.5)",
+    boxShadow: "0 4px 12px rgba(0, 217, 126, 0.2)",
   },
   grid: {
     display: "grid",
@@ -381,18 +387,19 @@ const colStyles = {
     borderRadius: "50%",
   },
   headerLabel: {
-    fontFamily: "var(--font-mono)",
-    fontSize: 10,
-    letterSpacing: 3,
-    fontWeight: "bold",
+    fontFamily: "var(--font-sans)",
+    fontSize: 11,
+    letterSpacing: 2,
+    fontWeight: 600,
   },
   headerCode: {
     color: "var(--muted)",
     fontFamily: "var(--font-mono)",
-    fontSize: 8,
-    letterSpacing: 2,
+    fontSize: 9,
+    letterSpacing: 1,
     background: "rgba(255,255,255,0.04)",
-    padding: "1px 5px",
+    padding: "2px 6px",
+    borderRadius: "3px",
   },
   headerCount: {
     fontFamily: "var(--font-mono)",
@@ -407,7 +414,7 @@ const colStyles = {
     width: "40%",
     height: "100%",
     background:
-      "linear-gradient(90deg, transparent, rgba(0,255,65,0.08), transparent)",
+      "linear-gradient(90deg, transparent, rgba(0, 217, 126, 0.08), transparent)",
     pointerEvents: "none",
   },
   dropZone: {
@@ -424,9 +431,9 @@ const colStyles = {
     gap: 8,
     paddingTop: 40,
     color: "var(--muted)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 8,
-    letterSpacing: 2,
+    fontFamily: "var(--font-sans)",
+    fontSize: 10,
+    letterSpacing: 1,
     transition: "opacity 0.15s",
   },
   emptyIcon: {
