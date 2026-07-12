@@ -6,6 +6,15 @@ import mongoose, { Schema } from "mongoose";
 // The access control is enforced at the route/controller layer, not here.
 const projectNoteSchema = new Schema(
   {
+    // Short heading for the note — shown in the note card header
+    title: {
+      type: String,
+      required: [true, "Note title is required"],
+      trim: true,
+      minlength: [2, "Note title must be at least 2 characters"],
+      maxlength: [150, "Note title cannot exceed 150 characters"],
+    },
+
     // The main body of the note — supports plain text or markdown
     content: {
       type: String,

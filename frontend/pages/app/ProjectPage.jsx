@@ -181,7 +181,7 @@ function NoteForm({ initial = null, onSave, onCancel, saving }) {
         onChange={(e) => setTitle(e.target.value)}
         placeholder="NOTE TITLE..."
         style={PS.noteFormInput}
-        maxLength={120}
+        maxLength={150}
       />
       <textarea
         value={content}
@@ -189,10 +189,10 @@ function NoteForm({ initial = null, onSave, onCancel, saving }) {
         placeholder="NOTE CONTENT..."
         rows={5}
         style={{ ...PS.noteFormInput, ...PS.noteFormTextarea }}
-        maxLength={2000}
+        maxLength={10000}
       />
       <div style={PS.noteFormFooter}>
-        <span style={PS.noteFormCount}>{content.length}/2000</span>
+        <span style={PS.noteFormCount}>{content.length}/10000</span>
         <div style={{ display: "flex", gap: 8 }}>
           <button
             onClick={onCancel}
@@ -312,6 +312,16 @@ function NotesTab({ projectId, canAdmin }) {
           const isDeleting = deletingId === note._id;
           const author =
             note.createdBy?.fullName || note.createdBy?.username || "UNKNOWN";
+          // Notes created before titles existed have no title — fall back to
+          // the first line of content so the header never renders blank.
+          const displayTitle =
+            note.title?.trim() ||
+            note.content?.split("\n")[0].slice(0, 80).trim() ||
+            "UNTITLED";
+          const isEdited =
+            note.updatedAt &&
+            note.createdAt &&
+            note.updatedAt !== note.createdAt;
           const date = new Date(note.createdAt)
             .toLocaleDateString("en-US", {
               year: "numeric",
@@ -342,7 +352,8 @@ function NotesTab({ projectId, canAdmin }) {
                   style={PS.noteHeaderBtn}
                 >
                   <span style={PS.noteChevron}>{isOpen ? "▼" : "▶"}</span>
-                  <span style={PS.noteTitle}>{note.title}</span>
+                  <span style={PS.noteTitle}>{displayTitle}</span>
+                  {isEdited && <span style={PS.noteEdited}>EDITED</span>}
                   <span style={PS.noteAuthor}>
                     {author.split(" ")[0].toUpperCase()}
                   </span>
@@ -894,6 +905,15 @@ const PS = {
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
     minWidth: 0,
+  },
+  noteEdited: {
+    color: "var(--amber)",
+    fontSize: 7,
+    letterSpacing: 1.5,
+    border: "1px solid var(--amber)",
+    borderRadius: 2,
+    padding: "1px 4px",
+    flexShrink: 0,
   },
   noteAuthor: {
     color: "var(--phosphor-dim)",

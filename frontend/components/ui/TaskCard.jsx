@@ -1,6 +1,7 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { motion } from "framer-motion";
+import { useAuth } from "../../context/authcontext.jsx";
 
 const STATUS_CONFIG = {
   todo: { color: "var(--muted)", label: "TODO", pulse: false },
@@ -15,6 +16,7 @@ const PRIORITY_CONFIG = {
 };
 
 export default function TaskCard({ task, onClick }) {
+  const { user } = useAuth();
   const {
     attributes,
     listeners,
@@ -24,6 +26,19 @@ export default function TaskCard({ task, onClick }) {
     isDragging,
   } = useSortable({ id: task._id });
 
+  // Assignee arrives in two shapes depending on the data path:
+  //   • MyTasksPage (useMyTasks) normalizes it to `task.assignee` with `name`
+  //   • The Kanban board (useTasks) leaves the raw populated `task.assignedTo`
+  //     with `fullName`/`username`.
+  // Support both so the card works everywhere.
+  const assignee = task.assignee ?? task.assignedTo ?? null;
+  const assigneeName =
+    assignee?.name || assignee?.fullName || assignee?.username || null;
+
+  // Is this task assigned to the currently logged-in member?
+  const isMine =
+    !!assignee?._id && !!user?._id && assignee._id === user._id;
+
   const style = {
     transform: CSS.Transform.toString(transform),
     transition,
@@ -32,8 +47,8 @@ export default function TaskCard({ task, onClick }) {
   const statusCfg = STATUS_CONFIG[task.status] || STATUS_CONFIG.todo;
   const priorityCfg = PRIORITY_CONFIG[task.priority] || PRIORITY_CONFIG.medium;
 
-  const assigneeInitial = task.assignee?.name
-    ? task.assignee.name[0].toUpperCase()
+  const assigneeInitial = assigneeName
+    ? assigneeName[0].toUpperCase()
     : "?";
 
   const subtasksDone = task.subTasks?.filter((s) => s.isCompleted)?.length || 0;
@@ -48,13 +63,16 @@ export default function TaskCard({ task, onClick }) {
           scale: isDragging ? 1.04 : 1,
           boxShadow: isDragging
             ? "0 16px 40px rgba(0,0,0,0.6), 0 0 20px rgba(0, 217, 126, 0.2)"
-            : "0 2px 8px rgba(0,0,0,0.3)",
+            : isMine
+              ? "0 2px 8px rgba(0,0,0,0.3), -3px 0 0 var(--phosphor), 0 0 14px rgba(0, 217, 126, 0.25)"
+              : "0 2px 8px rgba(0,0,0,0.3)",
           zIndex: isDragging ? 50 : 1,
         }}
         transition={{ duration: 0.15 }}
         onClick={!isDragging ? onClick : undefined}
         style={{
           ...cardStyles.card,
+          borderColor: isMine ? "var(--phosphor)" : "var(--border)",
           opacity: isDragging ? 0.95 : 1,
           cursor: isDragging ? "grabbing" : "grab",
         }}
@@ -106,12 +124,23 @@ export default function TaskCard({ task, onClick }) {
         {/* Footer */}
         <div style={cardStyles.footer}>
           {/* Assignee */}
-          <div style={cardStyles.assignee} title={task.assignee?.name}>
-            <span style={cardStyles.assigneeAvatar}>{assigneeInitial}</span>
-            {task.assignee?.name && (
-              <span style={cardStyles.assigneeName}>
-                {task.assignee.name.split(" ")[0].toUpperCase()}
-              </span>
+          <div style={cardStyles.assignee} title={assigneeName || undefined}>
+            <span
+              style={{
+                ...cardStyles.assigneeAvatar,
+                ...(isMine ? cardStyles.assigneeAvatarMine : null),
+              }}
+            >
+              {assigneeInitial}
+            </span>
+            {isMine ? (
+              <span style={cardStyles.youBadge}>◆ YOU</span>
+            ) : (
+              assigneeName && (
+                <span style={cardStyles.assigneeName}>
+                  {assigneeName.split(" ")[0].toUpperCase()}
+                </span>
+              )
             )}
           </div>
 
@@ -251,11 +280,28 @@ const cardStyles = {
     lineHeight: "18px",
     textAlign: "center",
   },
+  assigneeAvatarMine: {
+    background: "var(--phosphor)",
+    borderColor: "var(--phosphor)",
+    color: "var(--bg)",
+    boxShadow: "0 0 6px rgba(0, 217, 126, 0.5)",
+  },
   assigneeName: {
     color: "var(--muted)",
     fontSize: 8,
     letterSpacing: 1,
     fontFamily: "var(--font-mono)",
+  },
+  youBadge: {
+    color: "var(--phosphor)",
+    fontSize: 8,
+    fontWeight: 700,
+    letterSpacing: 1.5,
+    fontFamily: "var(--font-mono)",
+    border: "1px solid rgba(0, 217, 126, 0.4)",
+    borderRadius: 3,
+    padding: "1px 5px",
+    background: "rgba(0, 217, 126, 0.1)",
   },
   badge: {
     color: "var(--muted)",

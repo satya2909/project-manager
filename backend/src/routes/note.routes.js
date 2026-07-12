@@ -28,6 +28,12 @@ router
     attachProject,
     checkProjectRole(UserRolesEnum.ADMIN),
     [
+      body("title")
+        .trim()
+        .notEmpty()
+        .withMessage("Note title is required")
+        .isLength({ min: 2, max: 150 })
+        .withMessage("Title must be between 2 and 150 characters"),
       body("content")
         .trim()
         .notEmpty()
@@ -54,6 +60,12 @@ router
     checkProjectRole(UserRolesEnum.ADMIN),
     [
       param("noteId").isMongoId().withMessage("Invalid note ID"),
+      body("title")
+        .trim()
+        .notEmpty()
+        .withMessage("Note title is required")
+        .isLength({ min: 2, max: 150 })
+        .withMessage("Title must be between 2 and 150 characters"),
       body("content")
         .trim()
         .notEmpty()
