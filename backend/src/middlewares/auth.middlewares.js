@@ -91,3 +91,26 @@ export const checkProjectRole = (minimumRole) => {
     next();
   });
 };
+
+// ─── checkGlobalRole ──────────────────────────────────────────────────────────
+// Used on routes that are NOT scoped to an existing project (e.g. creating a
+// new project). Checks the user's GLOBAL account role (req.user.role) against a
+// minimum required role. Must be used AFTER verifyJWT.
+//
+// RoleHierarchy: member(0) < project_admin(1) < admin(2)
+
+export const checkGlobalRole = (minimumRole) => {
+  return asyncHandler(async (req, _, next) => {
+    const userLevel = RoleHierarchy[req.user?.role] ?? -1;
+    const requiredLevel = RoleHierarchy[minimumRole] ?? 99;
+
+    if (userLevel < requiredLevel) {
+      throw new ApiError(
+        403,
+        `This action requires the '${minimumRole}' role or higher`,
+      );
+    }
+
+    next();
+  });
+};

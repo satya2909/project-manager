@@ -506,6 +506,7 @@ function TasksTab({ project, members }) {
           onTaskMove={handleTaskMove}
           onTaskClick={handleTaskClick}
           onCreateTask={() => setShowCreateTask(true)}
+          canCreate={canManage}
         />
       </motion.div>
       <CreateTaskModal

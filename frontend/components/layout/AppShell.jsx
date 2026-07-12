@@ -432,7 +432,7 @@ export default function AppShell({
         {/* Topbar */}
         <header style={S.topbar}>
           <div style={S.topbarLeft}>
-            <span style={S.topbarCrumb}>SYS://PROJECTCAMP/</span>
+            <span style={S.topbarCrumb}>PROJECTCAMP/</span>
             <span style={S.topbarCrumbPage}>{crumbPage}</span>
             <span style={S.topbarBlink}>▮</span>
           </div>

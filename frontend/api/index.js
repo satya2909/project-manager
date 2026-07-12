@@ -120,6 +120,7 @@ export const projectsApi = {
 // ─── TASKS ────────────────────────────────────────────────────────────────────
 export const tasksApi = {
   list: (projectId) => api.get(`/tasks/${projectId}`),
+  listMine: () => api.get("/tasks/me"),
   create: (projectId, data) => api.post(`/tasks/${projectId}`, data),
   get: (projectId, taskId) => api.get(`/tasks/${projectId}/t/${taskId}`),
   update: (projectId, taskId, data) =>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import {
   projectsApi,
   tasksApi,
@@ -6,7 +6,8 @@ import {
   activityApi,
   parseApiError,
 } from "../api";
-export { Spinner, InlineError, InlineSuccess } from "./primitive.jsx";
+
+
 
 // ─── useProjects ──────────────────────────────────────────────────────────────
 export function useProjects() {
@@ -173,6 +174,7 @@ export function useTasks(projectId) {
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const pendingUpdates = useRef(new Map());
 
   const fetch = useCallback(async () => {
     if (!projectId) return;
@@ -195,26 +197,40 @@ export function useTasks(projectId) {
   const createTask = async (payload) => {
     try {
       const { data } = await tasksApi.create(projectId, payload);
-      setTasks((prev) => [...prev, data?.data?.task]);
-      return { success: true, data: data?.data?.task };
+      const newTask = data?.data?.task;
+      setTasks((prev) => [...prev, newTask]);
+      return { success: true, data: newTask };
     } catch (err) {
       return { success: false, error: parseApiError(err) };
     }
   };
 
   const updateTask = async (taskId, payload) => {
+    const updateKey = `${taskId}_${Date.now()}`;
+    pendingUpdates.current.set(taskId, updateKey);
+
     setTasks((prev) =>
       prev.map((t) => (t._id === taskId ? { ...t, ...payload } : t)),
     );
+
     try {
       const { data } = await tasksApi.update(projectId, taskId, payload);
-      setTasks((prev) =>
-        prev.map((t) => (t._id === taskId ? { ...t, ...data?.data?.task } : t)),
-      );
+      const serverTask = data?.data?.task;
+
+      if (pendingUpdates.current.get(taskId) === updateKey) {
+        setTasks((prev) =>
+          prev.map((t) => (t._id === taskId ? { ...t, ...serverTask } : t)),
+        );
+      }
+
       return { success: true };
     } catch (err) {
-      fetch();
+      await fetch();
       return { success: false, error: parseApiError(err) };
+    } finally {
+      if (pendingUpdates.current.get(taskId) === updateKey) {
+        pendingUpdates.current.delete(taskId);
+      }
     }
   };
 
@@ -238,6 +254,59 @@ export function useTasks(projectId) {
     deleteTask,
     setTasks,
   };
+}
+
+// ─── useMyTasks ───────────────────────────────────────────────────────────────
+// Cross-project view of tasks assigned to the current user. Every task here is
+// assigned to the caller, so status changes are always permitted server-side.
+function normalizeMyTask(t) {
+  const a = t.assignedTo;
+  return {
+    ...t,
+    assignee: a
+      ? { ...a, _id: a._id, name: a.fullName || a.username || "Unknown" }
+      : null,
+  };
+}
+
+export function useMyTasks() {
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetch = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await tasksApi.listMine();
+      setTasks((data?.data?.tasks ?? []).map(normalizeMyTask));
+    } catch (err) {
+      setError(parseApiError(err));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetch();
+  }, [fetch]);
+
+  // Optimistic status change. On failure, refetch to restore authoritative
+  // state (a status-only change is safe to reload wholesale).
+  const updateStatus = async (projectId, taskId, status) => {
+    setTasks((prev) =>
+      prev.map((t) => (t._id === taskId ? { ...t, status } : t)),
+    );
+    try {
+      await tasksApi.update(projectId, taskId, { status });
+      return { success: true };
+    } catch (err) {
+      await fetch();
+      return { success: false, error: parseApiError(err) };
+    }
+  };
+
+  return { tasks, loading, error, refetch: fetch, updateStatus, setTasks };
 }
 
 // ─── useTask (single) ─────────────────────────────────────────────────────────
