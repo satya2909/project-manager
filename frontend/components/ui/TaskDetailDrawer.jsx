@@ -254,9 +254,14 @@ export default function TaskDetailDrawer({
   const [saving, setSaving] = useState(false);
   const [deleted, setDeleted] = useState(false);
 
-  // Sync if parent passes updated task
+  // Sync if parent passes updated task. Also clear the post-delete slide-out
+  // flag so a newly selected task animates back into view (otherwise the panel
+  // stays parked off-screen and details only appear after a manual refresh).
   useEffect(() => {
-    if (task) setLocalTask(task);
+    if (task) {
+      setLocalTask(task);
+      setDeleted(false);
+    }
   }, [task]);
 
   // Close on Escape

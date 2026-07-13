@@ -440,7 +440,7 @@ function NotesTab({ projectId, canAdmin }) {
 function TasksTab({ project, members }) {
   const { user } = useAuth();
   const projectId = project._id;
-  const { tasks, loading, error, refetch, createTask, updateTask, deleteTask } =
+  const { tasks, loading, error, refetch, createTask, updateTask, setTasks } =
     useTasks(projectId);
 
   const [showCreateTask, setShowCreateTask] = useState(false);
@@ -472,7 +472,10 @@ function TasksTab({ project, members }) {
     setSelectedTask((prev) => (prev ? { ...prev, ...patch } : prev));
   };
   const handleTaskDelete = (taskId) => {
-    deleteTask(taskId);
+    // The drawer already deleted the task on the server before calling onDelete,
+    // so here we only sync local state (re-calling the API would 404 and skip
+    // the state update, leaving the task on the board until a manual refresh).
+    setTasks((prev) => prev.filter((t) => t._id !== taskId));
     setDrawerOpen(false);
     setSelectedTask(null);
   };
