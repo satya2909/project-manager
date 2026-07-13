@@ -1,5 +1,7 @@
-// Custom in-memory rate limiter
-// Tracks requests by IP address and endpoint
+// Rate limiting middleware for unauthenticated endpoints
+// Custom in-memory rate limiter - Tracks requests by IP address and endpoint
+// Production scaling note: For multi-instance deployments, migrate to Redis-backed store.
+// Usage: const store = new RedisStore({ client, prefix: 'rl:' }) and pass to RateLimiter
 class RateLimiter {
   constructor(windowMs = 15 * 60 * 1000, maxRequests = 3) {
     this.windowMs = windowMs;
