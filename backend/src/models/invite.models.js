@@ -24,6 +24,17 @@ const inviteSchema = new Schema(
       match: [/^\S+@\S+\.\S+$/, "Please enter a valid email address"],
     },
 
+    // Optional display name captured at invite time (e.g. from a bulk-upload
+    // sheet's "name" column). Used to personalize the invite email and to
+    // pre-fill the invitee's fullName on the accept page. Purely cosmetic —
+    // the invitee can override it when they register.
+    invitedName: {
+      type: String,
+      trim: true,
+      maxlength: [60, "Name cannot exceed 60 characters"],
+      default: "",
+    },
+
     role: {
       type: String,
       enum: AvailableOrgRole,

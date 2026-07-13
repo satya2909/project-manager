@@ -6,6 +6,8 @@ import {
   ALLOWED_MIME_TYPES,
   MAX_FILE_SIZE_BYTES,
   MAX_FILES_PER_TASK,
+  SPREADSHEET_MIME_TYPES,
+  MAX_INVITE_SHEET_BYTES,
 } from "../utils/constants.js";
 
 // ─── Storage Engine ───────────────────────────────────────────────────────────
@@ -64,3 +66,34 @@ export const upload = multer({
 
 // Named middleware — field name "attachments" must match the frontend FormData key
 export const uploadTaskFiles = upload.array("attachments", MAX_FILES_PER_TASK);
+
+// ─── Bulk-Invite Sheet Upload ─────────────────────────────────────────────────
+// A single spreadsheet, held in memory (never written to disk) so it can be
+// streamed straight into the exceljs parser and then GC'd. Restricted to
+// spreadsheet MIME types with a tight size cap of its own.
+
+const spreadsheetFilter = (_req, file, cb) => {
+  if (SPREADSHEET_MIME_TYPES.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(
+      new ApiError(
+        415,
+        `File type '${file.mimetype}' is not allowed. Upload an Excel (.xlsx) or CSV file.`,
+      ),
+      false,
+    );
+  }
+};
+
+const inviteSheetUpload = multer({
+  storage: multer.memoryStorage(),
+  fileFilter: spreadsheetFilter,
+  limits: {
+    fileSize: MAX_INVITE_SHEET_BYTES,
+    files: 1,
+  },
+});
+
+// Field name "file" must match the frontend FormData key.
+export const uploadInviteSheet = inviteSheetUpload.single("file");

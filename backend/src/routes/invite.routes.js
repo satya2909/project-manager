@@ -2,6 +2,7 @@ import { Router } from "express";
 import { body, param } from "express-validator";
 import {
   createInvite,
+  bulkCreateInvites,
   listInvites,
   revokeInvite,
   getInviteByToken,
@@ -9,6 +10,7 @@ import {
 } from "../controllers/invite.controllers.js";
 import { verifyJWT, checkOrgRole } from "../middlewares/auth.middlewares.js";
 import { validate } from "../middlewares/validator.middlewares.js";
+import { uploadInviteSheet } from "../middlewares/multer.middlewares.js";
 import { OrgRolesEnum, AvailableOrgRole } from "../utils/constants.js";
 
 const router = Router();
@@ -44,6 +46,18 @@ router.post(
   ],
   validate,
   createInvite,
+);
+
+// ─── POST /invites/bulk ───────────────────────────────────────────────────────
+// Upload a spreadsheet (name, email, role) to invite many people at once.
+// Owner/admin only. Single memory-held file under field name "file". Declared
+// before the public "/:token" routes — "/bulk" is a distinct literal segment.
+router.post(
+  "/bulk",
+  verifyJWT,
+  checkOrgRole(OrgRolesEnum.ADMIN),
+  uploadInviteSheet,
+  bulkCreateInvites,
 );
 
 // ─── GET /invites ─────────────────────────────────────────────────────────────

@@ -82,6 +82,28 @@ export const ALLOWED_MIME_TYPES = [
 export const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10 MB
 export const MAX_FILES_PER_TASK = 5;
 
+// ─── Bulk Invite Upload ───────────────────────────────────────────────────────
+// Spreadsheet MIME types accepted for the bulk-invite upload. Kept separate from
+// ALLOWED_MIME_TYPES (task attachments) so the invite endpoint only takes sheets.
+export const SPREADSHEET_MIME_TYPES = [
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
+  "application/vnd.ms-excel", // .xls
+  "text/csv", // .csv (exceljs can read it too)
+  "application/csv",
+  "text/plain", // some browsers label .csv as text/plain
+];
+
+// Hard cap on rows per bulk-invite upload. Bounds memory, SMTP fan-out, and
+// domain-reputation blast radius; keeps the request synchronous and fast.
+export const MAX_BULK_INVITE_ROWS = 200;
+
+// Max size for an uploaded invite sheet (2 MB — a 200-row sheet is a few KB).
+export const MAX_INVITE_SHEET_BYTES = 2 * 1024 * 1024;
+
+// How many invite emails to dispatch concurrently. Throttled so a big upload
+// doesn't hammer the SMTP provider or blow past its rate limit.
+export const INVITE_EMAIL_CONCURRENCY = 5;
+
 // ─── Pagination ───────────────────────────────────────────────────────────────
 
 export const DEFAULT_PAGE_LIMIT = 20;

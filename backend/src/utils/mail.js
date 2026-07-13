@@ -92,10 +92,10 @@ const templates = {
         `),
   }),
 
-  orgInvite: (orgName, inviterName, role, acceptUrl) => ({
+  orgInvite: (orgName, inviterName, role, acceptUrl, inviteeName) => ({
     subject: `You've been invited to join "${orgName}" on Project Camp`,
     html: htmlShell(`
-          <p>Hello,</p>
+          <p>Hello${inviteeName ? ` <strong style="color:#e8e8e8">${inviteeName}</strong>` : ""},</p>
           <p><strong style="color:#e8e8e8">${inviterName}</strong> has invited you to join <strong style="color:#2ecc71">${orgName}</strong> on Project Camp as <strong style="color:#e8e8e8">${role}</strong>.</p>
           <p>Click below to accept the invitation and set up your account.</p>
           <a href="${acceptUrl}" class="cta">ACCEPT INVITATION</a>
@@ -172,6 +172,7 @@ export const sendOrgInviteEmail = async (
   inviterName,
   role,
   inviteToken,
+  inviteeName = "",
 ) => {
   const acceptUrl = `${process.env.CLIENT_URL}/accept-invite/${inviteToken}`;
   const { subject, html } = templates.orgInvite(
@@ -179,6 +180,7 @@ export const sendOrgInviteEmail = async (
     inviterName,
     role,
     acceptUrl,
+    inviteeName,
   );
   return sendEmail({ to, subject, html });
 };

@@ -35,6 +35,21 @@ const inviteService = {
     return d(res);
   },
 
+  /**
+   * POST /invites/bulk — owner/admin uploads a spreadsheet (name, email, role)
+   * to invite many people at once. Always resolves with a per-row report.
+   * @param {File} file  an .xlsx or .csv file
+   * @returns {Promise<{ total, summary, sent, skipped, failed, failedEmail }>}
+   */
+  bulkCreate: async (file) => {
+    const form = new FormData();
+    form.append("file", file);
+    const res = await api.post("/invites/bulk", form, {
+      headers: { "Content-Type": "multipart/form-data" },
+    });
+    return d(res);
+  },
+
   /** GET /invites — owner/admin lists pending invites for the org. */
   list: async () => {
     const res = await api.get("/invites");

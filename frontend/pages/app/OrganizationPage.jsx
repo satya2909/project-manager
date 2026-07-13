@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Building2, Users, Mail, Trash2, Send } from "lucide-react";
+import { Building2, Users, Mail, Trash2, Send, Upload, Download } from "lucide-react";
 import { useAuth } from "../../context/authcontext.jsx";
 import organizationService from "../../services/organization.service.js";
 import inviteService from "../../services/invite.service.js";
@@ -154,6 +154,12 @@ function InvitesTab() {
   const [sendMsg, setSendMsg] = useState({ ok: "", err: "" });
   const [busy, setBusy] = useState({});
 
+  // Bulk upload state
+  const [bulkFile, setBulkFile] = useState(null);
+  const [bulkBusy, setBulkBusy] = useState(false);
+  const [bulkErr, setBulkErr] = useState("");
+  const [bulkResult, setBulkResult] = useState(null);
+
   const fetchInvites = useCallback(async () => {
     try {
       setLoading(true);
@@ -203,6 +209,34 @@ function InvitesTab() {
     }
   };
 
+  const handleTemplateDownload = () => {
+    const csv = "name,email,role\nJane Doe,jane@example.com,member\nJohn Roe,john@example.com,admin\n";
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "invite-template.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleBulkUpload = async () => {
+    if (!bulkFile) return;
+    setBulkErr("");
+    setBulkResult(null);
+    setBulkBusy(true);
+    try {
+      const data = await inviteService.bulkCreate(bulkFile);
+      setBulkResult(data);
+      setBulkFile(null);
+      await fetchInvites();
+    } catch (e) {
+      setBulkErr(e?.response?.data?.message || "Bulk upload failed.");
+    } finally {
+      setBulkBusy(false);
+    }
+  };
+
   return (
     <div style={{ maxWidth: 720, padding: "20px 4px" }}>
       {/* Send invite */}
@@ -235,6 +269,92 @@ function InvitesTab() {
       </div>
       {sendMsg.ok && <div style={{ marginTop: 10 }}><InlineSuccess message={sendMsg.ok} /></div>}
       {sendMsg.err && <div style={{ marginTop: 10 }}><InlineError message={sendMsg.err} /></div>}
+
+      {/* Bulk invite */}
+      <div style={{ ...S.sectionLabel, marginTop: 32 }}>
+        <span>BULK INVITE (EXCEL / CSV)</span>
+        <div style={S.rule} />
+      </div>
+      <p style={{ ...S.dangerText, marginBottom: 12 }}>
+        Upload a sheet with <strong style={{ color: "var(--text)" }}>name</strong>,{" "}
+        <strong style={{ color: "var(--text)" }}>email</strong>, and{" "}
+        <strong style={{ color: "var(--text)" }}>role</strong> columns (max 200 rows).
+        Everyone valid gets an invitation email.
+      </p>
+      <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+        <label style={{ ...S.btnGhost, display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+          <Upload size={12} />
+          {bulkFile ? bulkFile.name : "CHOOSE FILE"}
+          <input
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            style={{ display: "none" }}
+            onChange={(e) => {
+              setBulkFile(e.target.files?.[0] || null);
+              setBulkResult(null);
+              setBulkErr("");
+            }}
+          />
+        </label>
+        <button
+          style={{ ...S.btnPrimary, display: "flex", alignItems: "center", gap: 6, opacity: bulkFile && !bulkBusy ? 1 : 0.4, cursor: bulkFile && !bulkBusy ? "pointer" : "not-allowed" }}
+          onClick={handleBulkUpload}
+          disabled={!bulkFile || bulkBusy}
+        >
+          {bulkBusy ? "UPLOADING..." : "UPLOAD & INVITE"}
+        </button>
+        <button style={{ ...S.btnGhost, display: "flex", alignItems: "center", gap: 6 }} onClick={handleTemplateDownload}>
+          <Download size={12} /> TEMPLATE
+        </button>
+      </div>
+      {bulkErr && <div style={{ marginTop: 10 }}><InlineError message={bulkErr} /></div>}
+
+      {bulkResult && (
+        <div style={{ marginTop: 14 }}>
+          <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 10 }}>
+            <span style={S.statChip}><b style={{ color: "var(--phosphor)" }}>{bulkResult.summary.sent}</b> SENT</span>
+            <span style={S.statChip}><b>{bulkResult.summary.skipped}</b> SKIPPED</span>
+            <span style={S.statChip}><b style={{ color: "var(--red, #e05050)" }}>{bulkResult.summary.failed}</b> FAILED</span>
+            {bulkResult.summary.failedEmail > 0 && (
+              <span style={S.statChip}><b style={{ color: "var(--red, #e05050)" }}>{bulkResult.summary.failedEmail}</b> EMAIL FAILED</span>
+            )}
+          </div>
+          {[
+            ...bulkResult.skipped.map((r) => ({ ...r, kind: "SKIPPED" })),
+            ...bulkResult.failed.map((r) => ({ ...r, kind: "FAILED" })),
+            ...bulkResult.failedEmail.map((r) => ({ ...r, kind: "EMAIL FAILED" })),
+          ].length > 0 && (
+            <div style={{ overflowX: "auto" }}>
+              <table style={S.table}>
+                <thead>
+                  <tr>
+                    <th style={S.th}>ROW</th>
+                    <th style={S.th}>EMAIL</th>
+                    <th style={S.th}>STATUS</th>
+                    <th style={S.th}>REASON</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[
+                    ...bulkResult.skipped.map((r) => ({ ...r, kind: "SKIPPED" })),
+                    ...bulkResult.failed.map((r) => ({ ...r, kind: "FAILED" })),
+                    ...bulkResult.failedEmail.map((r) => ({ ...r, kind: "EMAIL FAILED" })),
+                  ]
+                    .sort((a, b) => a.rowNumber - b.rowNumber)
+                    .map((r, i) => (
+                      <tr key={`${r.kind}-${r.rowNumber}-${i}`}>
+                        <td style={S.td}>{r.rowNumber}</td>
+                        <td style={S.td}>{r.email || "—"}</td>
+                        <td style={{ ...S.td, color: r.kind === "SKIPPED" ? "var(--muted)" : "var(--red, #e05050)" }}>{r.kind}</td>
+                        <td style={S.td}>{r.reason}</td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Pending list */}
       <div style={{ ...S.sectionLabel, marginTop: 32 }}>
@@ -500,6 +620,49 @@ const S = {
     padding: "5px 12px",
     cursor: "pointer",
     whiteSpace: "nowrap",
+  },
+  btnGhost: {
+    fontFamily: "var(--font-mono)",
+    fontSize: 9,
+    letterSpacing: "0.14em",
+    background: "transparent",
+    color: "var(--text)",
+    border: "1px solid var(--border)",
+    padding: "9px 16px",
+    cursor: "pointer",
+    whiteSpace: "nowrap",
+    maxWidth: 240,
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+  },
+  statChip: {
+    fontFamily: "var(--font-mono)",
+    fontSize: 10,
+    letterSpacing: "0.1em",
+    color: "var(--muted)",
+  },
+  table: {
+    width: "100%",
+    borderCollapse: "collapse",
+    fontFamily: "var(--font-mono)",
+    fontSize: 10,
+    minWidth: 480,
+  },
+  th: {
+    textAlign: "left",
+    padding: "6px 10px",
+    color: "var(--muted)",
+    fontSize: 8,
+    letterSpacing: "0.14em",
+    borderBottom: "1px solid var(--border)",
+    whiteSpace: "nowrap",
+  },
+  td: {
+    padding: "6px 10px",
+    color: "var(--text)",
+    borderBottom: "1px solid var(--border)",
+    letterSpacing: "0.03em",
+    verticalAlign: "top",
   },
   center: { display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "32px 0" },
   empty: {
