@@ -14,6 +14,7 @@ import {
 } from "../controllers/auth.controllers.js";
 import { verifyJWT } from "../middlewares/auth.middlewares.js";
 import { validate } from "../middlewares/validator.middlewares.js";
+import { limitRegister } from "../middlewares/ratelimit.middlewares.js";
 
 const router = Router();
 
@@ -21,6 +22,7 @@ const router = Router();
 
 router.post(
   "/register",
+  limitRegister,
   [
     body("email")
       .trim()
