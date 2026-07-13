@@ -1,10 +1,11 @@
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import { User } from "../models/index.js";
+import { User, Organization } from "../models/index.js";
 import { ApiError } from "../utils/api-error.js";
 import { ApiResponses } from "../utils/api-responses.js";
 import { asyncHandler } from "../utils/async-handler.js";
-import { cookieOptions } from "../utils/constants.js";
+import { cookieOptions, OrgRolesEnum } from "../utils/constants.js";
+import { generateUniqueOrgSlug } from "../utils/slug.js";
 import {
   sendVerificationEmail,
   sendPasswordResetEmail,
@@ -39,8 +40,10 @@ const sendTokenResponse = (res, statusCode, data, message, tokens) => {
 };
 
 // ─── POST /auth/register ──────────────────────────────────────────────────────
+// New-org signup: creates a fresh Organization and makes the registering user
+// its owner. Invite acceptance is a separate flow (POST /invites/:token/accept).
 export const registerUser = asyncHandler(async (req, res) => {
-  const { username, email, password, fullName } = req.body;
+  const { username, email, password, fullName, organizationName } = req.body;
 
   // Check for existing user
   const existingUser = await User.findOne({
@@ -55,8 +58,28 @@ export const registerUser = asyncHandler(async (req, res) => {
     );
   }
 
-  // Create user (password is hashed by pre-save hook)
+  // Create user (password is hashed by pre-save hook). Organization is attached
+  // below; if org creation fails we compensate by deleting this user, since we
+  // can't rely on multi-document transactions (no replica set assumed).
   const user = await User.create({ username, email, password, fullName });
+
+  let organization;
+  try {
+    const slug = await generateUniqueOrgSlug(organizationName);
+    organization = await Organization.create({
+      name: organizationName,
+      slug,
+      createdBy: user._id,
+    });
+    user.organization = organization._id;
+    user.role = OrgRolesEnum.OWNER;
+    await user.save({ validateBeforeSave: false });
+  } catch (err) {
+    // Roll back partial state so a failed signup doesn't orphan records.
+    if (organization) await Organization.findByIdAndDelete(organization._id);
+    await User.findByIdAndDelete(user._id);
+    throw err;
+  }
 
   // Generate and store verification token
   const { unhashedToken, hashedToken, tokenExpiry } =
@@ -142,6 +165,10 @@ export const loginUser = asyncHandler(async (req, res) => {
     throw new ApiError(401, "Invalid credentials");
   }
 
+  if (user.status === "deactivated") {
+    throw new ApiError(403, "Your account has been deactivated");
+  }
+
   if (!user.isEmailVerified) {
     throw new ApiError(
       403,
@@ -209,6 +236,10 @@ export const refreshAccessToken = asyncHandler(async (req, res) => {
   const user = await User.findById(decoded._id).select("+refreshToken");
   if (!user || user.refreshToken !== incomingRefreshToken) {
     throw new ApiError(401, "Refresh token mismatch — please log in again");
+  }
+
+  if (user.status === "deactivated") {
+    throw new ApiError(401, "Your account has been deactivated");
   }
 
   const tokens = await generateTokens(user._id);

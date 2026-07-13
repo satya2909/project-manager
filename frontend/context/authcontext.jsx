@@ -7,6 +7,7 @@ import {
 } from "react";
 import {
   authApi,
+  inviteApi,
   setAccessToken,
   clearAccessToken,
   parseApiError,
@@ -45,6 +46,23 @@ export function AuthProvider({ children }) {
     try {
       const { data } = await authApi.register(credentials);
       return { success: true, data: data?.data };
+    } catch (err) {
+      const message = parseApiError(err);
+      setError(message);
+      return { success: false, error: message };
+    }
+  }, []);
+
+  // ── Accept invite ─────────────────────────────────────────────────────────────
+  // Completes registration via an invite token and logs the new user in.
+  const acceptInvite = useCallback(async (token, credentials) => {
+    setError(null);
+    try {
+      const { data } = await inviteApi.accept(token, credentials);
+      const { user: userData, accessToken } = data?.data ?? {};
+      if (accessToken) setAccessToken(accessToken);
+      setUser(userData ?? null);
+      return { success: true };
     } catch (err) {
       const message = parseApiError(err);
       setError(message);
@@ -133,18 +151,25 @@ export function AuthProvider({ children }) {
   }, []);
 
   // ── Derived state ─────────────────────────────────────────────────────────────
+  // NOTE: user.role is the ORG-level role (owner/admin/member) — distinct from a
+  // user's per-project role. isOrgManager gates org-management + project creation.
   const isAuthenticated = !!user;
-  const isAdmin = user?.role === "admin";
+  const isOrgOwner = user?.role === "owner";
+  const isOrgAdmin = user?.role === "admin";
+  const isOrgManager = isOrgOwner || isOrgAdmin;
 
   const value = {
     user,
     loading,
     error,
     isAuthenticated,
-    isAdmin,
+    isOrgOwner,
+    isOrgAdmin,
+    isOrgManager,
     login,
     logout,
     register,
+    acceptInvite,
     changePassword,
     forgotPassword,
     resetPassword,

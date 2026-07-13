@@ -13,7 +13,7 @@ import {
 } from "../middlewares/auth.middlewares.js";
 import { attachProject } from "../middlewares/project.middlewares.js";
 import { validate } from "../middlewares/validator.middlewares.js";
-import { UserRolesEnum } from "../utils/constants.js";
+import { ProjectRolesEnum } from "../utils/constants.js";
 
 const router = Router();
 
@@ -26,7 +26,7 @@ router
   .get(attachProject, getProjectNotes)
   .post(
     attachProject,
-    checkProjectRole(UserRolesEnum.ADMIN),
+    checkProjectRole(ProjectRolesEnum.ADMIN),
     [
       body("title")
         .trim()
@@ -57,7 +57,7 @@ router
   )
   .put(
     attachProject,
-    checkProjectRole(UserRolesEnum.ADMIN),
+    checkProjectRole(ProjectRolesEnum.ADMIN),
     [
       param("noteId").isMongoId().withMessage("Invalid note ID"),
       body("title")
@@ -78,7 +78,7 @@ router
   )
   .delete(
     attachProject,
-    checkProjectRole(UserRolesEnum.ADMIN),
+    checkProjectRole(ProjectRolesEnum.ADMIN),
     [param("noteId").isMongoId().withMessage("Invalid note ID")],
     validate,
     deleteNote,

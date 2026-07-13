@@ -1,19 +1,42 @@
-// ─── User Roles ───────────────────────────────────────────────────────────────
+// ─── Organization Roles ───────────────────────────────────────────────────────
+// Org-level roles (User.role, Invite.role). One owner per org holds billing /
+// deletion rights; admin handles day-to-day management; member is the default.
 
-export const UserRolesEnum = {
+export const OrgRolesEnum = {
+  OWNER: "owner",
+  ADMIN: "admin",
+  MEMBER: "member",
+};
+
+export const AvailableOrgRole = Object.values(OrgRolesEnum);
+
+// Org role hierarchy — higher index = more permissions.
+// Used by checkOrgRole middleware to compare minimum required vs actual.
+export const OrgRoleHierarchy = {
+  [OrgRolesEnum.MEMBER]: 0,
+  [OrgRolesEnum.ADMIN]: 1,
+  [OrgRolesEnum.OWNER]: 2,
+};
+
+// ─── Project Roles ────────────────────────────────────────────────────────────
+// Project-scoped roles (Project.members[].role). Distinct from org roles above.
+// These two scopes previously shared one enum, which caused naming collisions
+// (e.g. the isAdmin ambiguity) — they are now separated.
+
+export const ProjectRolesEnum = {
   ADMIN: "admin",
   PROJECT_ADMIN: "project_admin",
   MEMBER: "member",
 };
 
-export const AvailableUserRole = Object.values(UserRolesEnum);
+export const AvailableProjectRole = Object.values(ProjectRolesEnum);
 
-// Role hierarchy — higher index = more permissions.
+// Project role hierarchy — higher index = more permissions.
 // Used by checkProjectRole middleware to compare minimum required vs actual.
-export const RoleHierarchy = {
-  [UserRolesEnum.MEMBER]: 0,
-  [UserRolesEnum.PROJECT_ADMIN]: 1,
-  [UserRolesEnum.ADMIN]: 2,
+export const ProjectRoleHierarchy = {
+  [ProjectRolesEnum.MEMBER]: 0,
+  [ProjectRolesEnum.PROJECT_ADMIN]: 1,
+  [ProjectRolesEnum.ADMIN]: 2,
 };
 
 // ─── Task Status ──────────────────────────────────────────────────────────────

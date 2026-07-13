@@ -4,7 +4,7 @@ import { Task, SubTask, Activity, Project } from "../models/index.js";
 import { ApiError } from "../utils/api-error.js";
 import { ApiResponses } from "../utils/api-responses.js";
 import { asyncHandler } from "../utils/async-handler.js";
-import { TaskStatusEnum, UserRolesEnum } from "../utils/constants.js";
+import { TaskStatusEnum, ProjectRolesEnum } from "../utils/constants.js";
 
 // ─── helper ───────────────────────────────────────────────────────────────────
 // Fire-and-forget activity log — never throws so it can't break the response.
@@ -174,8 +174,8 @@ export const updateTask = asyncHandler(async (req, res) => {
     (m) => m.user.toString() === req.user._id.toString(),
   );
   const isManager =
-    membership?.role === UserRolesEnum.PROJECT_ADMIN ||
-    membership?.role === UserRolesEnum.ADMIN;
+    membership?.role === ProjectRolesEnum.PROJECT_ADMIN ||
+    membership?.role === ProjectRolesEnum.ADMIN;
   const isAssignee =
     task.assignedTo && task.assignedTo.toString() === req.user._id.toString();
 
@@ -328,7 +328,7 @@ export const updateSubTask = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Subtask not found");
   }
 
-  const isMemberRole = req.projectRole === UserRolesEnum.MEMBER;
+  const isMemberRole = req.projectRole === ProjectRolesEnum.MEMBER;
 
   if (isMemberRole && (title !== undefined || assignedTo !== undefined)) {
     throw new ApiError(

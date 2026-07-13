@@ -2,7 +2,12 @@ import { Project, User, Activity } from "../models/index.js";
 import { ApiError } from "../utils/api-error.js";
 import { ApiResponses } from "../utils/api-responses.js";
 import { asyncHandler } from "../utils/async-handler.js";
-import { UserRolesEnum, RoleHierarchy } from "../utils/constants.js";
+import {
+  ProjectRolesEnum,
+  ProjectRoleHierarchy,
+  AvailableProjectRole,
+  OrgRolesEnum,
+} from "../utils/constants.js";
 import { sendProjectInviteEmail } from "../utils/mail.js";
 
 // ─── helper ───────────────────────────────────────────────────────────────────
@@ -23,8 +28,9 @@ export const createProject = asyncHandler(async (req, res) => {
   const project = await Project.create({
     name,
     description,
+    organization: req.user.organization,
     createdBy: req.user._id,
-    members: [{ user: req.user._id, role: UserRolesEnum.ADMIN }],
+    members: [{ user: req.user._id, role: ProjectRolesEnum.ADMIN }],
   });
 
   return res
@@ -34,7 +40,16 @@ export const createProject = asyncHandler(async (req, res) => {
 
 // ─── GET /projects ────────────────────────────────────────────────────────────
 export const getUserProjects = asyncHandler(async (req, res) => {
-  const projects = await Project.find({ "members.user": req.user._id })
+  // Org owner/admin see every project in their org; members see only the
+  // projects they're personally on (still scoped to their org).
+  const isOrgManager =
+    req.user.role === OrgRolesEnum.OWNER || req.user.role === OrgRolesEnum.ADMIN;
+
+  const query = isOrgManager
+    ? { organization: req.user.organization }
+    : { organization: req.user.organization, "members.user": req.user._id };
+
+  const projects = await Project.find(query)
     .populate("createdBy", "username fullName avatar")
     .sort({ createdAt: -1 })
     .lean();
@@ -43,10 +58,14 @@ export const getUserProjects = asyncHandler(async (req, res) => {
     const membership = p.members.find(
       (m) => m.user.toString() === req.user._id.toString(),
     );
+    // Org managers act as project-admin even on projects they're not listed on.
+    const fallbackRole = isOrgManager
+      ? ProjectRolesEnum.ADMIN
+      : ProjectRolesEnum.MEMBER;
     return {
       ...p,
       memberCount: p.members.length,
-      myRole: membership?.role ?? UserRolesEnum.MEMBER,
+      myRole: membership?.role ?? fallbackRole,
     };
   });
 
@@ -110,18 +129,27 @@ export const getProjectMembers = asyncHandler(async (req, res) => {
 
 // ─── POST /projects/:projectId/members ────────────────────────────────────────
 export const addProjectMember = asyncHandler(async (req, res) => {
-  const { email, role = UserRolesEnum.MEMBER } = req.body;
+  const { email, role = ProjectRolesEnum.MEMBER } = req.body;
 
-  if (!Object.values(UserRolesEnum).includes(role)) {
+  if (!AvailableProjectRole.includes(role)) {
     throw new ApiError(
       400,
-      `Invalid role. Valid values: ${Object.values(UserRolesEnum).join(", ")}`,
+      `Invalid role. Valid values: ${AvailableProjectRole.join(", ")}`,
     );
   }
 
-  const userToAdd = await User.findOne({ email });
+  // Only members of the caller's own org can be added — never a cross-org
+  // lookup. Project membership does not create accounts; org invites do that.
+  const userToAdd = await User.findOne({
+    email,
+    organization: req.user.organization,
+    status: "active",
+  });
   if (!userToAdd) {
-    throw new ApiError(404, `No account found with email: ${email}`);
+    throw new ApiError(
+      404,
+      `No active member of your organization found with email: ${email}. Invite them to the organization first.`,
+    );
   }
 
   const isAlreadyMember = req.project.members.some(
@@ -168,10 +196,10 @@ export const updateMemberRole = asyncHandler(async (req, res) => {
   const { userId } = req.params;
   const { role } = req.body;
 
-  if (!Object.values(UserRolesEnum).includes(role)) {
+  if (!AvailableProjectRole.includes(role)) {
     throw new ApiError(
       400,
-      `Invalid role. Valid values: ${Object.values(UserRolesEnum).join(", ")}`,
+      `Invalid role. Valid values: ${AvailableProjectRole.join(", ")}`,
     );
   }
 
@@ -186,7 +214,7 @@ export const updateMemberRole = asyncHandler(async (req, res) => {
     throw new ApiError(404, "User is not a member of this project");
   }
 
-  if (RoleHierarchy[role] > RoleHierarchy[req.projectRole]) {
+  if (ProjectRoleHierarchy[role] > ProjectRoleHierarchy[req.projectRole]) {
     throw new ApiError(403, "You cannot assign a role higher than your own");
   }
 

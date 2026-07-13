@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "../../context/authcontext.jsx";
 import projectService from "../../services/project.service.js";
+import organizationService from "../../services/organization.service.js";
 
 // ── constants ──────────────────────────────────────────────────────────────
 const ASSIGNABLE_ROLES = ["member", "project_admin"];
@@ -51,8 +52,10 @@ export default function MembersPanel({ projectId }) {
   const [error, setError] = useState("");
   const [toast, setToast] = useState({ msg: "", ok: true });
 
-  // add-member form
-  const [email, setEmail] = useState("");
+  // add-member form — picks from existing org members (project add no longer
+  // resolves arbitrary emails; new accounts come only from org invites)
+  const [orgMembers, setOrgMembers] = useState([]);
+  const [selectedUserId, setSelectedUserId] = useState("");
   const [role, setRole] = useState("member");
   const [adding, setAdding] = useState(false);
   const [addErr, setAddErr] = useState("");
@@ -73,11 +76,9 @@ export default function MembersPanel({ projectId }) {
       setLoading(true);
       setError("");
       const data = await projectService.listMembers(projectId);
-      console.log("raw listMembers response:", data);
       setMembers(data?.members ?? []);
     } catch (e) {
       setError(e?.response?.data?.message || "Failed to load members.");
-      console.log("listMembers error:", e?.response);
     } finally {
       setLoading(false);
     }
@@ -86,6 +87,24 @@ export default function MembersPanel({ projectId }) {
   useEffect(() => {
     fetchMembers();
   }, [fetchMembers]);
+
+  // Load org members so admins can pick from people already in the org.
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await organizationService.listMembers();
+        setOrgMembers(data?.members ?? []);
+      } catch {
+        setOrgMembers([]);
+      }
+    })();
+  }, []);
+
+  // Active org members not already on this project — the add-member candidates.
+  const memberIds = new Set(members.map((m) => (m.user?._id ?? m.user)?.toString()));
+  const candidates = orgMembers.filter(
+    (om) => om.status === "active" && !memberIds.has(om._id?.toString()),
+  );
 
   // ── toast helper ─────────────────────────────────────────────────────
   const flash = (msg, ok = true) => {
@@ -96,21 +115,18 @@ export default function MembersPanel({ projectId }) {
 
   // ── add member ───────────────────────────────────────────────────────
   const handleAdd = async () => {
-    if (!email.trim()) {
-      setAddErr("Email is required.");
-      return;
-    }
-    if (!/\S+@\S+\.\S+/.test(email)) {
-      setAddErr("Enter a valid email.");
+    const picked = candidates.find((c) => c._id === selectedUserId);
+    if (!picked) {
+      setAddErr("Select a member to add.");
       return;
     }
     setAddErr("");
     setAdding(true);
     try {
-      await projectService.addMember(projectId, { email: email.trim(), role });
-      setEmail("");
+      await projectService.addMember(projectId, { email: picked.email, role });
+      setSelectedUserId("");
       setRole("member");
-      flash(`✓ Member added as ${role}`);
+      flash(`✓ ${picked.fullName || picked.username} added as ${role}`);
       await fetchMembers();
     } catch (e) {
       setAddErr(e?.response?.data?.message || "Failed to add member.");
@@ -159,10 +175,6 @@ export default function MembersPanel({ projectId }) {
       setRemoving((r) => ({ ...r, [userId]: false }));
     }
   };
-  console.log("members", members);
-  console.log("user", user);
-  console.log("myRole", myRole);
-  console.log("isAdmin", isAdmin);
   // ── render ────────────────────────────────────────────────────────────
   return (
     <div style={S.wrap}>
@@ -178,48 +190,60 @@ export default function MembersPanel({ projectId }) {
             <div style={S.rule} />
           </div>
 
-          <div style={S.addRow}>
-            <div style={S.fieldWrap}>
-              <label style={S.fieldLabel}>EMAIL</label>
-              <input
-                style={{
-                  ...S.input,
-                  borderColor: addErr ? "var(--red, #e05050)" : "var(--border)",
-                }}
-                type="email"
-                placeholder="teammate@example.com"
-                value={email}
-                onChange={(e) => {
-                  setEmail(e.target.value);
-                  setAddErr("");
-                }}
-                onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-              />
+          {candidates.length === 0 ? (
+            <div style={S.hint}>
+              All active org members are already on this project. Invite new
+              people from the Organization → Invites page.
             </div>
+          ) : (
+            <div style={S.addRow}>
+              <div style={S.fieldWrap}>
+                <label style={S.fieldLabel}>ORG MEMBER</label>
+                <select
+                  style={{
+                    ...S.select,
+                    width: "100%",
+                    borderColor: addErr ? "var(--red, #e05050)" : "var(--border)",
+                  }}
+                  value={selectedUserId}
+                  onChange={(e) => {
+                    setSelectedUserId(e.target.value);
+                    setAddErr("");
+                  }}
+                >
+                  <option value="">select a member…</option>
+                  {candidates.map((c) => (
+                    <option key={c._id} value={c._id}>
+                      {(c.fullName || c.username)} — {c.email}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
-            <div style={S.fieldWrap}>
-              <label style={S.fieldLabel}>ROLE</label>
-              <select
-                style={S.select}
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
+              <div style={S.fieldWrap}>
+                <label style={S.fieldLabel}>ROLE</label>
+                <select
+                  style={S.select}
+                  value={role}
+                  onChange={(e) => setRole(e.target.value)}
+                >
+                  {ASSIGNABLE_ROLES.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <button
+                style={{ ...S.btnAdd, opacity: adding ? 0.6 : 1 }}
+                onClick={handleAdd}
+                disabled={adding}
               >
-                {ASSIGNABLE_ROLES.map((r) => (
-                  <option key={r} value={r}>
-                    {r}
-                  </option>
-                ))}
-              </select>
+                {adding ? "ADDING..." : "+ ADD"}
+              </button>
             </div>
-
-            <button
-              style={{ ...S.btnAdd, opacity: adding ? 0.6 : 1 }}
-              onClick={handleAdd}
-              disabled={adding}
-            >
-              {adding ? "ADDING..." : "+ ADD"}
-            </button>
-          </div>
+          )}
 
           {addErr && <div style={S.addError}>✗ {addErr}</div>}
         </motion.div>
@@ -450,6 +474,16 @@ const S = {
     color: "var(--red, #e05050)",
     letterSpacing: "0.06em",
     marginTop: 6,
+  },
+  hint: {
+    fontFamily: "var(--font-mono)",
+    fontSize: 9.5,
+    color: "var(--muted)",
+    letterSpacing: "0.04em",
+    lineHeight: 1.6,
+    padding: "10px 12px",
+    border: "1px solid var(--border)",
+    background: "var(--surface)",
   },
   // member rows
   memberRow: {

@@ -1,74 +1,60 @@
-import { useState } from "react";
-import { Eye, EyeOff, ArrowRight, UserPlus, Check } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Eye, EyeOff, ArrowRight, Mail, Check, ShieldCheck } from "lucide-react";
 import { useAuth } from "../../context/authcontext";
-import { InlineError, InlineSuccess, Spinner } from "../../components/ui/primitive.jsx";
+import inviteService from "../../services/invite.service.js";
+import {
+  InlineError,
+  Spinner,
+} from "../../components/ui/primitive.jsx";
 
-// ─── PASSWORD STRENGTH ────────────────────────────────────────────────────────
-function getStrength(password) {
-  if (!password) return { score: 0, label: "", color: "" };
-  let score = 0;
-  if (password.length >= 8) score++;
-  if (password.length >= 12) score++;
-  if (/[A-Z]/.test(password)) score++;
-  if (/[0-9]/.test(password)) score++;
-  if (/[^A-Za-z0-9]/.test(password)) score++;
+// ─── ACCEPT INVITE PAGE ───────────────────────────────────────────────────────
+// Reached via the emailed link /accept-invite/:token while logged out.
+// Previews the org + role (both locked — the invitee cannot change them), then
+// completes registration and logs the new user in.
+export default function AcceptInvitePage({ token, onNavigate }) {
+  const { acceptInvite } = useAuth();
 
-  if (score <= 1) return { score, label: "weak", color: "var(--rose)" };
-  if (score <= 3) return { score, label: "fair", color: "var(--amber)" };
-  return { score, label: "strong", color: "var(--signal)" };
-}
-
-function StrengthBar({ password }) {
-  const { score, label, color } = getStrength(password);
-  if (!password) return null;
-
-  return (
-    <div style={{ marginTop: "0.5rem" }}>
-      <div style={{ display: "flex", gap: "3px", marginBottom: "0.3rem" }}>
-        {[1, 2, 3, 4, 5].map((i) => (
-          <div
-            key={i}
-            style={{
-              flex: 1,
-              height: 3,
-              borderRadius: 2,
-              background: i <= score ? color : "var(--edge)",
-              transition: "background 300ms ease",
-            }}
-          />
-        ))}
-      </div>
-      <span
-        style={{
-          fontFamily: "var(--font-mono)",
-          fontSize: "0.65rem",
-          color,
-          letterSpacing: "0.06em",
-        }}
-      >
-        {label}
-      </span>
-    </div>
-  );
-}
-
-// ─── REGISTER PAGE ────────────────────────────────────────────────────────────
-export default function RegisterPage({ onNavigate }) {
-  const { register } = useAuth();
+  const [checking, setChecking] = useState(true);
+  const [invite, setInvite] = useState(null); // { email, role, organization }
+  const [previewError, setPreviewError] = useState("");
 
   const [form, setForm] = useState({
     fullName: "",
     username: "",
-    organizationName: "",
-    email: "",
     password: "",
     confirm: "",
   });
   const [showPass, setShowPass] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [focused, setFocused] = useState("");
+
+  // ── Validate the token on mount ──────────────────────────────────────────────
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      if (!token) {
+        setPreviewError("This invitation link is missing its token.");
+        setChecking(false);
+        return;
+      }
+      try {
+        const data = await inviteService.preview(token);
+        if (active) setInvite(data?.invite ?? null);
+      } catch (err) {
+        if (active)
+          setPreviewError(
+            err?.response?.data?.message ||
+              "This invitation is invalid or has expired.",
+          );
+      } finally {
+        if (active) setChecking(false);
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [token]);
 
   const handleChange = (e) => {
     setForm((p) => ({ ...p, [e.target.name]: e.target.value }));
@@ -76,14 +62,8 @@ export default function RegisterPage({ onNavigate }) {
   };
 
   const validate = () => {
-    if (!form.username.trim()) return "Username is required.";
     if (!/^[a-zA-Z0-9_]{3,30}$/.test(form.username))
       return "Username must be 3–30 letters, numbers, or underscores.";
-    if (!form.organizationName.trim())
-      return "Company / workspace name is required.";
-    if (form.organizationName.trim().length < 2)
-      return "Workspace name must be at least 2 characters.";
-    if (!form.email) return "Email address is required.";
     if (form.password.length < 8)
       return "Password must be at least 8 characters.";
     if (form.password !== form.confirm) return "Passwords do not match.";
@@ -97,29 +77,81 @@ export default function RegisterPage({ onNavigate }) {
       setError(err);
       return;
     }
-
     setLoading(true);
-    const result = await register({
+    const result = await acceptInvite(token, {
       username: form.username.trim(),
       fullName: form.fullName.trim(),
-      organizationName: form.organizationName.trim(),
-      email: form.email,
       password: form.password,
     });
     setLoading(false);
-
-    if (result.success) {
-      setSuccess("Account created! Check your email to verify your account.");
-      setTimeout(() => onNavigate("login"), 3000);
-    } else {
-      setError(result.error);
-    }
+    // On success the AuthProvider sets the user and the app swaps to the shell —
+    // no manual navigation needed. On failure, surface the error.
+    if (!result.success) setError(result.error);
   };
 
+  // ── Checking token ───────────────────────────────────────────────────────────
+  if (checking) {
+    return (
+      <div
+        className="animate-fade-up delay-0"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: "1rem",
+          padding: "2rem 0",
+        }}
+      >
+        <Spinner size="md" />
+        <span
+          style={{
+            fontFamily: "var(--font-mono)",
+            fontSize: "0.8rem",
+            color: "var(--ghost)",
+            letterSpacing: "0.08em",
+          }}
+        >
+          validating invitation...
+        </span>
+      </div>
+    );
+  }
+
+  // ── Invalid / expired ────────────────────────────────────────────────────────
+  if (previewError) {
+    return (
+      <div className="animate-fade-up delay-0">
+        <h2
+          style={{
+            fontFamily: "var(--font-display)",
+            fontSize: "1.6rem",
+            fontWeight: 800,
+            color: "var(--text-bright)",
+            marginBottom: "0.75rem",
+          }}
+        >
+          Invitation unavailable
+        </h2>
+        <div style={{ marginBottom: "1.25rem" }}>
+          <InlineError message={previewError} />
+        </div>
+        <button
+          type="button"
+          onClick={() => onNavigate("login")}
+          className="btn btn-primary"
+          style={{ width: "100%", justifyContent: "center", padding: "0.75rem" }}
+        >
+          go to sign in <ArrowRight size={15} />
+        </button>
+      </div>
+    );
+  }
+
+  // ── Valid invite — show the completion form ──────────────────────────────────
   return (
     <div className="animate-fade-up delay-0">
       {/* Header */}
-      <div style={{ marginBottom: "2.25rem" }}>
+      <div style={{ marginBottom: "2rem" }}>
         <div
           style={{
             display: "inline-flex",
@@ -132,7 +164,7 @@ export default function RegisterPage({ onNavigate }) {
             marginBottom: "1.25rem",
           }}
         >
-          <UserPlus size={11} color="var(--ice)" />
+          <ShieldCheck size={11} color="var(--ice)" />
           <span
             style={{
               fontFamily: "var(--font-mono)",
@@ -142,22 +174,22 @@ export default function RegisterPage({ onNavigate }) {
               color: "var(--ice)",
             }}
           >
-            new account
+            invitation
           </span>
         </div>
 
         <h2
           style={{
             fontFamily: "var(--font-display)",
-            fontSize: "2rem",
+            fontSize: "1.85rem",
             fontWeight: 800,
             letterSpacing: "-0.03em",
             color: "var(--text-bright)",
             marginBottom: "0.5rem",
-            lineHeight: 1.1,
+            lineHeight: 1.15,
           }}
         >
-          Create your workspace.
+          Join {invite?.organization?.name || "the workspace"}.
         </h2>
         <p
           style={{
@@ -166,17 +198,50 @@ export default function RegisterPage({ onNavigate }) {
             color: "var(--ghost)",
           }}
         >
-          Start a new company workspace — you'll be its owner
+          You're joining as{" "}
+          <span style={{ color: "var(--signal)" }}>
+            {(invite?.role || "member").toUpperCase()}
+          </span>
         </p>
       </div>
 
-      {/* Form */}
       <form
         onSubmit={handleSubmit}
         style={{ display: "flex", flexDirection: "column", gap: "1.1rem" }}
       >
+        {/* Locked email (from the invite) */}
+        <div className="input-group">
+          <label className="input-label" htmlFor="invite-email">
+            email address (locked)
+          </label>
+          <div style={{ position: "relative" }}>
+            <input
+              id="invite-email"
+              type="email"
+              className="input-field"
+              value={invite?.email || ""}
+              readOnly
+              disabled
+              style={{ paddingRight: "2.75rem", opacity: 0.75 }}
+            />
+            <div
+              style={{
+                position: "absolute",
+                right: "0.75rem",
+                top: "50%",
+                transform: "translateY(-50%)",
+                color: "var(--muted)",
+                display: "flex",
+                alignItems: "center",
+              }}
+            >
+              <Mail size={15} />
+            </div>
+          </div>
+        </div>
+
         {/* Full name */}
-        <div className="animate-fade-up delay-50 input-group">
+        <div className="input-group">
           <label className="input-label" htmlFor="fullName">
             {focused === "fullName" || form.fullName ? (
               <span style={{ color: "var(--signal)" }}>▸ full name</span>
@@ -200,7 +265,7 @@ export default function RegisterPage({ onNavigate }) {
         </div>
 
         {/* Username */}
-        <div className="animate-fade-up delay-75 input-group">
+        <div className="input-group">
           <label className="input-label" htmlFor="username">
             {focused === "username" || form.username ? (
               <span style={{ color: "var(--signal)" }}>▸ username</span>
@@ -223,58 +288,8 @@ export default function RegisterPage({ onNavigate }) {
           />
         </div>
 
-        {/* Company / workspace name */}
-        <div className="animate-fade-up delay-100 input-group">
-          <label className="input-label" htmlFor="organizationName">
-            {focused === "organizationName" || form.organizationName ? (
-              <span style={{ color: "var(--signal)" }}>
-                ▸ company / workspace name
-              </span>
-            ) : (
-              "company / workspace name"
-            )}
-          </label>
-          <input
-            id="organizationName"
-            name="organizationName"
-            type="text"
-            autoComplete="organization"
-            className="input-field"
-            placeholder="Acme Inc."
-            value={form.organizationName}
-            onChange={handleChange}
-            onFocus={() => setFocused("organizationName")}
-            onBlur={() => setFocused("")}
-            disabled={loading}
-          />
-        </div>
-
-        {/* Email */}
-        <div className="animate-fade-up delay-100 input-group">
-          <label className="input-label" htmlFor="email">
-            {focused === "email" || form.email ? (
-              <span style={{ color: "var(--signal)" }}>▸ email address</span>
-            ) : (
-              "email address"
-            )}
-          </label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="email"
-            className="input-field"
-            placeholder="ada@projectcamp.io"
-            value={form.email}
-            onChange={handleChange}
-            onFocus={() => setFocused("email")}
-            onBlur={() => setFocused("")}
-            disabled={loading}
-          />
-        </div>
-
         {/* Password */}
-        <div className="animate-fade-up delay-150 input-group">
+        <div className="input-group">
           <label className="input-label" htmlFor="password">
             {focused === "password" || form.password ? (
               <span style={{ color: "var(--signal)" }}>▸ password</span>
@@ -310,30 +325,20 @@ export default function RegisterPage({ onNavigate }) {
                 cursor: "pointer",
                 color: "var(--muted)",
                 padding: 0,
-                transition: "color 120ms ease",
                 display: "flex",
                 alignItems: "center",
               }}
-              onMouseEnter={(e) =>
-                (e.currentTarget.style.color = "var(--text-soft)")
-              }
-              onMouseLeave={(e) =>
-                (e.currentTarget.style.color = "var(--muted)")
-              }
             >
               {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
             </button>
           </div>
-          <StrengthBar password={form.password} />
         </div>
 
         {/* Confirm password */}
-        <div className="animate-fade-up delay-200 input-group">
+        <div className="input-group">
           <label className="input-label" htmlFor="confirm">
             {focused === "confirm" || form.confirm ? (
-              <span style={{ color: "var(--signal)" }}>
-                ▸ confirm password
-              </span>
+              <span style={{ color: "var(--signal)" }}>▸ confirm password</span>
             ) : (
               "confirm password"
             )}
@@ -353,7 +358,6 @@ export default function RegisterPage({ onNavigate }) {
               disabled={loading}
               style={{ paddingRight: "2.75rem" }}
             />
-            {/* Match indicator */}
             {form.confirm && form.password === form.confirm && (
               <div
                 style={{
@@ -372,67 +376,36 @@ export default function RegisterPage({ onNavigate }) {
           </div>
         </div>
 
-        {/* Error / Success */}
         {error && (
           <div className="animate-fade-in">
             <InlineError message={error} />
           </div>
         )}
-        {success && (
-          <div className="animate-fade-in">
-            <InlineSuccess message={success} />
-          </div>
-        )}
 
-        {/* Submit */}
-        <div className="animate-fade-up delay-250">
-          <button
-            type="submit"
-            className="btn btn-primary"
-            disabled={loading || !!success}
-            style={{
-              width: "100%",
-              justifyContent: "center",
-              padding: "0.75rem",
-              fontSize: "0.85rem",
-            }}
-          >
-            {loading ? (
-              <>
-                <Spinner size="sm" /> creating account...
-              </>
-            ) : success ? (
-              <>
-                <Check size={15} /> account created
-              </>
-            ) : (
-              <>
-                create account <ArrowRight size={15} />
-              </>
-            )}
-          </button>
-        </div>
+        <button
+          type="submit"
+          className="btn btn-primary"
+          disabled={loading}
+          style={{
+            width: "100%",
+            justifyContent: "center",
+            padding: "0.75rem",
+            fontSize: "0.85rem",
+          }}
+        >
+          {loading ? (
+            <>
+              <Spinner size="sm" /> joining...
+            </>
+          ) : (
+            <>
+              accept & join <ArrowRight size={15} />
+            </>
+          )}
+        </button>
       </form>
 
-      {/* Terms note */}
-      <p
-        className="animate-fade-up delay-300"
-        style={{
-          marginTop: "1rem",
-          fontFamily: "var(--font-mono)",
-          fontSize: "0.7rem",
-          color: "var(--dim)",
-          textAlign: "center",
-          lineHeight: 1.6,
-        }}
-      >
-        By creating an account you agree to our{" "}
-        <span style={{ color: "var(--ghost)" }}>terms of service</span>.
-      </p>
-
-      {/* Footer */}
       <div
-        className="animate-fade-up delay-400"
         style={{
           marginTop: "1.5rem",
           paddingTop: "1.5rem",
@@ -443,7 +416,7 @@ export default function RegisterPage({ onNavigate }) {
           color: "var(--ghost)",
         }}
       >
-        already have access?{" "}
+        already have an account?{" "}
         <button
           type="button"
           onClick={() => onNavigate("login")}

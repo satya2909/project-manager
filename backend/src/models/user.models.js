@@ -2,7 +2,7 @@ import mongoose, { Schema } from "mongoose";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import crypto from "crypto";
-import { AvailableUserRole, UserRolesEnum } from "../utils/constants.js";
+import { AvailableOrgRole, OrgRolesEnum } from "../utils/constants.js";
 
 const userSchema = new Schema(
   {
@@ -49,10 +49,31 @@ const userSchema = new Schema(
       default: null,
     },
 
+    // The organization this user belongs to (tenant boundary).
+    // Optional for now so existing users can be backfilled by the migration;
+    // flip to `required: true` after backfill (Phase 1 migration step 4).
+    organization: {
+      type: Schema.Types.ObjectId,
+      ref: "Organization",
+      index: true,
+    },
+
+    // The user's ORG-level role. One owner per org; admin manages the org;
+    // member is the default. Distinct from project-level roles (Project.members).
     role: {
       type: String,
-      enum: AvailableUserRole,
-      default: UserRolesEnum.MEMBER,
+      enum: AvailableOrgRole,
+      default: OrgRolesEnum.MEMBER,
+    },
+
+    // Soft-delete flag for org membership. Deactivated users cannot log in,
+    // pass verifyJWT, or refresh tokens, but their createdBy/assignedTo
+    // references are preserved. Enforced in loginUser / verifyJWT / refresh.
+    status: {
+      type: String,
+      enum: ["active", "deactivated"],
+      default: "active",
+      index: true,
     },
 
     isEmailVerified: {

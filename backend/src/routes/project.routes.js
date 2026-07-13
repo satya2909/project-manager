@@ -14,11 +14,15 @@ import {
 import {
   verifyJWT,
   checkProjectRole,
-  checkGlobalRole,
+  checkOrgRole,
 } from "../middlewares/auth.middlewares.js";
 import { attachProject } from "../middlewares/project.middlewares.js";
 import { validate } from "../middlewares/validator.middlewares.js";
-import { UserRolesEnum } from "../utils/constants.js";
+import {
+  OrgRolesEnum,
+  ProjectRolesEnum,
+  AvailableProjectRole,
+} from "../utils/constants.js";
 
 const router = Router();
 
@@ -31,7 +35,7 @@ router
   .route("/")
   .get(getUserProjects)
   .post(
-    checkGlobalRole(UserRolesEnum.PROJECT_ADMIN),
+    checkOrgRole(OrgRolesEnum.ADMIN),
     [
       body("name")
         .trim()
@@ -57,7 +61,7 @@ router
   .get(attachProject, getProjectById)
   .put(
     attachProject,
-    checkProjectRole(UserRolesEnum.ADMIN),
+    checkProjectRole(ProjectRolesEnum.ADMIN),
     [
       body("name")
         .optional()
@@ -73,7 +77,7 @@ router
     validate,
     updateProject,
   )
-  .delete(attachProject, checkProjectRole(UserRolesEnum.ADMIN), deleteProject);
+  .delete(attachProject, checkProjectRole(ProjectRolesEnum.ADMIN), deleteProject);
 
 // ─── /projects/:projectId/members ─────────────────────────────────────────────
 
@@ -82,7 +86,7 @@ router
   .get(attachProject, getProjectMembers)
   .post(
     attachProject,
-    checkProjectRole(UserRolesEnum.ADMIN),
+    checkProjectRole(ProjectRolesEnum.ADMIN),
     [
       body("email")
         .trim()
@@ -93,7 +97,7 @@ router
         .normalizeEmail(),
       body("role")
         .optional()
-        .isIn(Object.values(UserRolesEnum))
+        .isIn(AvailableProjectRole)
         .withMessage("Role must be admin, project_admin, or member"),
     ],
     validate,
@@ -104,7 +108,7 @@ router
   .route("/:projectId/members/:userId")
   .put(
     attachProject,
-    checkProjectRole(UserRolesEnum.ADMIN),
+    checkProjectRole(ProjectRolesEnum.ADMIN),
     [
       param("userId")
         .notEmpty()
@@ -114,7 +118,7 @@ router
       body("role")
         .notEmpty()
         .withMessage("Role is required")
-        .isIn(Object.values(UserRolesEnum))
+        .isIn(AvailableProjectRole)
         .withMessage("Role must be admin, project_admin, or member"),
     ],
     validate,
@@ -122,7 +126,7 @@ router
   )
   .delete(
     attachProject,
-    checkProjectRole(UserRolesEnum.ADMIN),
+    checkProjectRole(ProjectRolesEnum.ADMIN),
     [
       param("userId")
         .notEmpty()

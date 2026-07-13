@@ -20,7 +20,7 @@ import {
 import { attachProject } from "../middlewares/project.middlewares.js";
 import { validate } from "../middlewares/validator.middlewares.js";
 import { uploadTaskFiles } from "../middlewares/multer.middlewares.js";
-import { UserRolesEnum, AvailableTaskStatus } from "../utils/constants.js";
+import { ProjectRolesEnum, AvailableTaskStatus } from "../utils/constants.js";
 
 const router = Router();
 
@@ -39,7 +39,7 @@ router
   .get(attachProject, getProjectTasks)
   .post(
     attachProject,
-    checkProjectRole(UserRolesEnum.PROJECT_ADMIN),
+    checkProjectRole(ProjectRolesEnum.PROJECT_ADMIN),
     [
       body("title")
         .trim()
@@ -109,7 +109,7 @@ router
   )
   .delete(
     attachProject,
-    checkProjectRole(UserRolesEnum.PROJECT_ADMIN),
+    checkProjectRole(ProjectRolesEnum.PROJECT_ADMIN),
     [param("taskId").isMongoId().withMessage("Invalid task ID")],
     validate,
     deleteTask,
@@ -120,7 +120,7 @@ router
 router.post(
   "/:projectId/t/:taskId/subtasks",
   attachProject,
-  checkProjectRole(UserRolesEnum.PROJECT_ADMIN),
+  checkProjectRole(ProjectRolesEnum.PROJECT_ADMIN),
   [
     param("taskId").isMongoId().withMessage("Invalid task ID"),
     body("title")
@@ -166,7 +166,7 @@ router
   )
   .delete(
     attachProject,
-    checkProjectRole(UserRolesEnum.PROJECT_ADMIN),
+    checkProjectRole(ProjectRolesEnum.PROJECT_ADMIN),
     [param("subTaskId").isMongoId().withMessage("Invalid subtask ID")],
     validate,
     deleteSubTask,
@@ -179,7 +179,7 @@ router
   .route("/:projectId/t/:taskId/attachments")
   .post(
     attachProject,
-    checkProjectRole(UserRolesEnum.PROJECT_ADMIN),
+    checkProjectRole(ProjectRolesEnum.PROJECT_ADMIN),
     uploadTaskFiles,
     addTaskAttachments,
   );
@@ -188,7 +188,7 @@ router
   .route("/:projectId/t/:taskId/attachments/:attachmentId")
   .delete(
     attachProject,
-    checkProjectRole(UserRolesEnum.PROJECT_ADMIN),
+    checkProjectRole(ProjectRolesEnum.PROJECT_ADMIN),
     [
       param("taskId").isMongoId().withMessage("Invalid task ID"),
       param("attachmentId").isMongoId().withMessage("Invalid attachment ID"),

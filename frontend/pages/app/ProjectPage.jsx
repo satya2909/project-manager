@@ -7,15 +7,33 @@ import { useTasks, useMembers, useNotes } from "../../hooks/index.js";
 import { useAuth } from "../../context/authcontext.jsx";
 import MembersPanel from "../../components/ui/MembersPanel.jsx";
 
-// ── role badge ────────────────────────────────────────────────────────────────
+// ── role badges ───────────────────────────────────────────────────────────────
+// Project-level role (this user's role within THIS project). Greenish palette.
 const ROLE_CFG = {
-  admin: { label: "ADMIN", color: "var(--phosphor)" },
-  project_admin: { label: "PROJ ADMIN", color: "var(--amber)" },
+  admin: { label: "PROJECT ADMIN", color: "var(--phosphor)" },
+  project_admin: { label: "PROJECT PM", color: "var(--phosphor-dim, #4ea36a)" },
   member: { label: "MEMBER", color: "var(--muted)" },
+};
+
+// Org-level role (owner/admin) — distinct hue so it never reads the same as a
+// project role. Shown when the user manages the whole org.
+const ORG_ROLE_CFG = {
+  owner: { label: "ORG OWNER", color: "var(--amber, #f0a500)" },
+  admin: { label: "ORG ADMIN", color: "var(--ice, #4db8ff)" },
 };
 
 function RoleBadge({ role }) {
   const cfg = ROLE_CFG[role] || ROLE_CFG.member;
+  return (
+    <span style={{ ...PS.roleBadge, color: cfg.color, borderColor: cfg.color }}>
+      {cfg.label}
+    </span>
+  );
+}
+
+function OrgRoleBadge({ role }) {
+  const cfg = ORG_ROLE_CFG[role];
+  if (!cfg) return null;
   return (
     <span style={{ ...PS.roleBadge, color: cfg.color, borderColor: cfg.color }}>
       {cfg.label}
@@ -549,7 +567,7 @@ function TasksTab({ project, members }) {
 
 // ── main page ─────────────────────────────────────────────────────────────────
 export default function ProjectPage({ project, onBack }) {
-  const { user } = useAuth();
+  const { user, isOrgOwner, isOrgAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState("tasks");
   const { members } = useMembers(project._id);
   const { tasks } = useTasks(project._id);
@@ -560,6 +578,8 @@ export default function ProjectPage({ project, onBack }) {
   );
   const myRole = myMembership?.role;
   const canAdmin = myRole === "admin";
+  // org owner/admin manage every project in their org (may not be a member here)
+  const myOrgRole = isOrgOwner ? "owner" : isOrgAdmin ? "admin" : null;
 
   const TABS = [
     { id: "tasks", label: "TASKS" },
@@ -582,6 +602,7 @@ export default function ProjectPage({ project, onBack }) {
           </button>
           <span style={PS.breadSep}>/</span>
           <span style={PS.breadCurrent}>{project.name}</span>
+          {myOrgRole && <OrgRoleBadge role={myOrgRole} />}
           {myRole && <RoleBadge role={myRole} />}
         </div>
         {project.description && (

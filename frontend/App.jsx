@@ -10,9 +10,11 @@ import RegisterPage from "./pages/auth/RegisterPage.jsx";
 import ForgotPasswordPage from "./pages/auth/ForgotPasswordPage.jsx";
 import ResetPasswordPage from "./pages/auth/ResetPasswordPage.jsx";
 import VerifyEmailPage from "./pages/auth/VerifyEmailPage.jsx";
+import AcceptInvitePage from "./pages/auth/AcceptInvitePage.jsx";
 import DashboardPage from "./pages/app/DashboardPage.jsx";
 import ProjectPage from "./pages/app/ProjectPage.jsx";
 import MyTasksPage from "./pages/app/MyTasksPage.jsx";
+import OrganizationPage from "./pages/app/OrganizationPage.jsx";
 
 // ── modals ────────────────────────────────────────────────────────────────────
 import CreateProjectModal from "./components/ui/CreateProjectModal.jsx";
@@ -66,6 +68,7 @@ function getUrlToken() {
 
 function getUrlPage() {
   const path = window.location.pathname;
+  if (path.includes("accept-invite")) return "accept-invite";
   if (path.includes("verify-email")) return "verify-email";
   if (path.includes("reset-password")) return "reset-password";
   if (path.includes("register")) return "register";
@@ -120,6 +123,11 @@ function AuthRouter() {
             <VerifyEmailPage token={token} onNavigate={handleNavigate} />
           </motion.div>
         )}
+        {page === "accept-invite" && (
+          <motion.div key="accept-invite" {...fadeSlide}>
+            <AcceptInvitePage token={token} onNavigate={handleNavigate} />
+          </motion.div>
+        )}
       </AnimatePresence>
     </AuthLayout>
   );
@@ -134,7 +142,7 @@ function AppRouter() {
     if (parts[0] === "projects" && parts[1]) {
       return { page: "project", projectId: parts[1] };
     }
-    const valid = ["dashboard", "projects", "tasks"];
+    const valid = ["dashboard", "projects", "tasks", "organization"];
     if (valid.includes(parts[0])) return { page: parts[0], projectId: null };
     return { page: "dashboard", projectId: null };
   };
@@ -254,6 +262,8 @@ function AppRouter() {
         );
       case "tasks":
         return <MyTasksPage />;
+      case "organization":
+        return <OrganizationPage />;
       default:
         return <PlaceholderPage label="404" sub="PAGE NOT FOUND" />;
     }

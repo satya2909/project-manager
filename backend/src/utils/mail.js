@@ -91,6 +91,19 @@ const templates = {
           <a href="${dashboardUrl}" class="cta">OPEN PROJECT</a>
         `),
   }),
+
+  orgInvite: (orgName, inviterName, role, acceptUrl) => ({
+    subject: `You've been invited to join "${orgName}" on Project Camp`,
+    html: htmlShell(`
+          <p>Hello,</p>
+          <p><strong style="color:#e8e8e8">${inviterName}</strong> has invited you to join <strong style="color:#2ecc71">${orgName}</strong> on Project Camp as <strong style="color:#e8e8e8">${role}</strong>.</p>
+          <p>Click below to accept the invitation and set up your account.</p>
+          <a href="${acceptUrl}" class="cta">ACCEPT INVITATION</a>
+          <p>Or copy this link into your browser:</p>
+          <div class="token-box">${acceptUrl}</div>
+          <p>This invitation expires in <strong style="color:#f59e0b">7 days</strong>. If you weren't expecting this, you can safely ignore it.</p>
+        `),
+  }),
 };
 
 // ─── sendEmail ────────────────────────────────────────────────────────────────
@@ -149,6 +162,23 @@ export const sendProjectInviteEmail = async (
     projectName,
     inviterName,
     dashboardUrl,
+  );
+  return sendEmail({ to, subject, html });
+};
+
+export const sendOrgInviteEmail = async (
+  to,
+  orgName,
+  inviterName,
+  role,
+  inviteToken,
+) => {
+  const acceptUrl = `${process.env.CLIENT_URL}/accept-invite/${inviteToken}`;
+  const { subject, html } = templates.orgInvite(
+    orgName,
+    inviterName,
+    role,
+    acceptUrl,
   );
   return sendEmail({ to, subject, html });
 };

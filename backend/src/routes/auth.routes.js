@@ -53,6 +53,12 @@ router.post(
       .trim()
       .isLength({ max: 60 })
       .withMessage("Full name cannot exceed 60 characters"),
+    body("organizationName")
+      .trim()
+      .notEmpty()
+      .withMessage("Organization name is required")
+      .isLength({ min: 2, max: 100 })
+      .withMessage("Organization name must be 2–100 characters"),
   ],
   validate,
   registerUser,

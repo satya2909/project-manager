@@ -1,4 +1,6 @@
 // backend/src/models/index.js
+export { Organization } from "./organization.models.js";
+export { Invite } from "./invite.models.js";
 export { User } from "./user.models.js";
 export { Project } from "./project.models.js";
 export { Task } from "./task.models.js";

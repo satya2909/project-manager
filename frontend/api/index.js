@@ -101,6 +101,32 @@ export const authApi = {
   resendVerification: () => api.post("/auth/resend-email-verification"),
 };
 
+// ─── ORGANIZATIONS ────────────────────────────────────────────────────────────
+export const orgApi = {
+  me: () => api.get("/organizations/me"),
+  update: (data) => api.put("/organizations", data),
+  remove: () => api.delete("/organizations"),
+  listMembers: () => api.get("/organizations/members"),
+  updateMemberRole: (userId, data) =>
+    api.put(`/organizations/members/${userId}`, data),
+  deactivateMember: (userId) =>
+    api.delete(`/organizations/members/${userId}`),
+};
+
+// ─── INVITES ──────────────────────────────────────────────────────────────────
+export const inviteApi = {
+  // Public — preview an invite by its raw token (for the accept page).
+  preview: (token) => api.get(`/invites/${token}`),
+  // Public — complete registration and join the org.
+  accept: (token, data) => api.post(`/invites/${token}/accept`, data),
+  // Owner/admin — send an invite into the caller's org.
+  create: (data) => api.post("/invites", data),
+  // Owner/admin — list pending invites for the caller's org.
+  list: () => api.get("/invites"),
+  // Owner/admin — revoke a pending invite.
+  revoke: (inviteId) => api.delete(`/invites/${inviteId}`),
+};
+
 // ─── PROJECTS ─────────────────────────────────────────────────────────────────
 export const projectsApi = {
   list: () => api.get("/projects"),

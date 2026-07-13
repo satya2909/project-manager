@@ -272,9 +272,9 @@ export default function DashboardPage({
   onOpenProject,
   onCreateProject,
 }) {
-  const { user } = useAuth();
-  const canCreateProject =
-    user?.role === "admin" || user?.role === "project_admin";
+  const { isOrgManager } = useAuth();
+  // Project creation is gated to org owner/admin (matches backend checkOrgRole).
+  const canCreateProject = isOrgManager;
 
   const displayProjects = projects.map((p, idx) => {
     const mockTasks = [10, 15, 8, 20, 12, 6];

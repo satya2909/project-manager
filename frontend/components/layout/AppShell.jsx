@@ -78,6 +78,15 @@ function TaskIcon() {
     </svg>
   );
 }
+function BuildingIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+      <rect x="2" y="1" width="8" height="14" stroke="currentColor" strokeWidth="1.5" />
+      <path d="M10 5h4v10h-4" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+      <path d="M4.5 4h3M4.5 7h3M4.5 10h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="square" />
+    </svg>
+  );
+}
 function LogoutIcon() {
   return (
     <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
@@ -177,16 +186,20 @@ export default function AppShell({
     ? `PROJECTS/${activeProjectName.toUpperCase()}`
     : activePage.toUpperCase();
 
-  // Role display
-  const roleLabel = user?.role
-    ? user.role.replace("_", " ").toUpperCase()
-    : "MEMBER";
+  // Role display (user.role is the ORG role: owner / admin / member)
+  const roleLabel = user?.role ? user.role.toUpperCase() : "MEMBER";
   const roleColor =
-    user?.role === "admin"
-      ? "var(--ice)"
-      : user?.role === "project_admin"
-        ? "var(--amber)"
+    user?.role === "owner"
+      ? "var(--amber, #f0a500)"
+      : user?.role === "admin"
+        ? "var(--ice)"
         : "var(--phosphor)";
+
+  // Org owner/admin see the Organization admin area.
+  const isOrgManager = user?.role === "owner" || user?.role === "admin";
+  const navItems = isOrgManager
+    ? [...NAV_ITEMS, { id: "organization", label: "ORGANIZATION", icon: BuildingIcon }]
+    : NAV_ITEMS;
 
   return (
     <div style={S.root}>
@@ -239,7 +252,7 @@ export default function AppShell({
 
         {/* Navigation */}
         <nav style={S.nav}>
-          {NAV_ITEMS.map((item) => {
+          {navItems.map((item) => {
             const isActive = activePage === item.id;
             const isHovered = scanHover === item.id;
             return (

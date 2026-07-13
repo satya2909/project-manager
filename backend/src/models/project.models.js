@@ -1,5 +1,5 @@
 import mongoose, { Schema } from "mongoose";
-import { AvailableUserRole, UserRolesEnum } from "../utils/constants.js";
+import { AvailableProjectRole, ProjectRolesEnum } from "../utils/constants.js";
 
 // ─── Sub-schema: Project Member ───────────────────────────────────────────────
 // Each member entry tracks which user belongs to this project and what role
@@ -14,8 +14,8 @@ const projectMemberSchema = new Schema(
     },
     role: {
       type: String,
-      enum: AvailableUserRole,
-      default: UserRolesEnum.MEMBER,
+      enum: AvailableProjectRole,
+      default: ProjectRolesEnum.MEMBER,
     },
   },
   { _id: false }, // no separate _id for embedded sub-docs
@@ -30,6 +30,15 @@ const projectSchema = new Schema(
       trim: true,
       minlength: [3, "Project name must be at least 3 characters"],
       maxlength: [100, "Project name cannot exceed 100 characters"],
+    },
+
+    // The organization this project belongs to (tenant boundary).
+    // Optional for now so existing projects can be backfilled by the migration;
+    // flip to `required: true` after backfill (Phase 1 migration step 4).
+    organization: {
+      type: Schema.Types.ObjectId,
+      ref: "Organization",
+      index: true,
     },
 
     description: {
@@ -74,6 +83,9 @@ const projectSchema = new Schema(
 
 // Enables fast query: "find all projects where this userId is a member"
 projectSchema.index({ "members.user": 1 });
+
+// Enables fast query: "list all projects in this org, newest first"
+projectSchema.index({ organization: 1, createdAt: -1 });
 
 // ─── Virtuals ─────────────────────────────────────────────────────────────────
 

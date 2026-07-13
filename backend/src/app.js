@@ -5,6 +5,8 @@ import { ApiError } from "./utils/api-error.js";
 
 // ─── Routers ──────────────────────────────────────────────────────────────────
 import authRouter from "./routes/auth.routes.js";
+import inviteRouter from "./routes/invite.routes.js";
+import organizationRouter from "./routes/organization.routes.js";
 import projectRouter from "./routes/project.routes.js";
 import taskRouter from "./routes/task.routes.js";
 import noteRouter from "./routes/note.routes.js";
@@ -30,6 +32,8 @@ app.use(
 
 // ─── Routes ───────────────────────────────────────────────────────────────────
 app.use("/api/v1/auth", authRouter);
+app.use("/api/v1/invites", inviteRouter);
+app.use("/api/v1/organizations", organizationRouter);
 app.use("/api/v1/projects", projectRouter);
 app.use("/api/v1/tasks", taskRouter);
 app.use("/api/v1/notes", noteRouter);

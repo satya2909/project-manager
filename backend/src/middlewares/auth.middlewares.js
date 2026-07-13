@@ -30,13 +30,21 @@ export const verifyJWT = asyncHandler(async (req, _, next) => {
     throw new ApiError(401, "Invalid access token");
   }
 
-  // Fetch user — exclude sensitive fields
+  // Fetch user — exclude sensitive fields.
+  // NOTE: this is a NEGATIVE projection on purpose — it must keep `organization`
+  // and `role`, which every downstream middleware depends on (attachProject's
+  // org boundary + checkOrgRole/checkProjectRole). Do not switch to a positive
+  // projection without explicitly re-including both.
   const user = await User.findById(decoded._id).select(
     "-password -refreshToken -emailVerificationToken -forgotPasswordToken",
   );
 
   if (!user) {
     throw new ApiError(401, "User not found — token may be stale");
+  }
+
+  if (user.status === "deactivated") {
+    throw new ApiError(401, "Your account has been deactivated");
   }
 
   req.user = user;
@@ -52,9 +60,14 @@ export const verifyJWT = asyncHandler(async (req, _, next) => {
 //
 // Usage:  router.put("/:projectId", verifyJWT, attachProject, checkProjectRole("admin"), ...)
 //
-// RoleHierarchy: member(0) < project_admin(1) < admin(2)
+// ProjectRoleHierarchy: member(0) < project_admin(1) < admin(2)
 
-import { RoleHierarchy, UserRolesEnum } from "../utils/constants.js";
+import {
+  ProjectRoleHierarchy,
+  OrgRoleHierarchy,
+  OrgRolesEnum,
+  ProjectRolesEnum,
+} from "../utils/constants.js";
 
 export const checkProjectRole = (minimumRole) => {
   return asyncHandler(async (req, _, next) => {
@@ -67,6 +80,16 @@ export const checkProjectRole = (minimumRole) => {
       );
     }
 
+    // Org owner/admin act as effective project-admin on any project in their
+    // org — they manage the whole org, so no per-project membership is required.
+    const isOrgManager =
+      req.user.role === OrgRolesEnum.OWNER ||
+      req.user.role === OrgRolesEnum.ADMIN;
+    if (isOrgManager) {
+      req.projectRole = ProjectRolesEnum.ADMIN;
+      return next();
+    }
+
     // Find this user's membership entry in the project
     const membership = project.members.find(
       (m) => m.user.toString() === req.user._id.toString(),
@@ -76,8 +99,8 @@ export const checkProjectRole = (minimumRole) => {
       throw new ApiError(403, "You are not a member of this project");
     }
 
-    const userLevel = RoleHierarchy[membership.role] ?? -1;
-    const requiredLevel = RoleHierarchy[minimumRole] ?? 99;
+    const userLevel = ProjectRoleHierarchy[membership.role] ?? -1;
+    const requiredLevel = ProjectRoleHierarchy[minimumRole] ?? 99;
 
     if (userLevel < requiredLevel) {
       throw new ApiError(
@@ -92,17 +115,17 @@ export const checkProjectRole = (minimumRole) => {
   });
 };
 
-// ─── checkGlobalRole ──────────────────────────────────────────────────────────
+// ─── checkOrgRole ─────────────────────────────────────────────────────────────
 // Used on routes that are NOT scoped to an existing project (e.g. creating a
-// new project). Checks the user's GLOBAL account role (req.user.role) against a
+// new project). Checks the user's ORG-level role (req.user.role) against a
 // minimum required role. Must be used AFTER verifyJWT.
 //
-// RoleHierarchy: member(0) < project_admin(1) < admin(2)
+// OrgRoleHierarchy: member(0) < admin(1) < owner(2)
 
-export const checkGlobalRole = (minimumRole) => {
+export const checkOrgRole = (minimumRole) => {
   return asyncHandler(async (req, _, next) => {
-    const userLevel = RoleHierarchy[req.user?.role] ?? -1;
-    const requiredLevel = RoleHierarchy[minimumRole] ?? 99;
+    const userLevel = OrgRoleHierarchy[req.user?.role] ?? -1;
+    const requiredLevel = OrgRoleHierarchy[minimumRole] ?? 99;
 
     if (userLevel < requiredLevel) {
       throw new ApiError(
