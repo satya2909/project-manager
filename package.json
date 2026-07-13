@@ -37,6 +37,7 @@
     "dotenv": "^17.4.2",
     "exceljs": "^4.4.0",
     "express": "^5.2.1",
+    "express-rate-limit": "^8.5.2",
     "express-validator": "^7.3.2",
     "framer-motion": "^12.40.0",
     "jsonwebtoken": "^9.0.3",
