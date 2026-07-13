@@ -49,12 +49,13 @@ const userSchema = new Schema(
       default: null,
     },
 
-    // The organization this user belongs to (tenant boundary).
-    // Optional for now so existing users can be backfilled by the migration;
-    // flip to `required: true` after backfill (Phase 1 migration step 4).
+    // The organization this user belongs to (tenant boundary). Required: every
+    // user is created via new-org signup (registerUser) or invite acceptance,
+    // both of which set this. Backfilled for legacy users by migrate:orgs.
     organization: {
       type: Schema.Types.ObjectId,
       ref: "Organization",
+      required: [true, "A user must belong to an organization"],
       index: true,
     },
 

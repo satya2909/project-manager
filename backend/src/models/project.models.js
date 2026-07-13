@@ -32,12 +32,13 @@ const projectSchema = new Schema(
       maxlength: [100, "Project name cannot exceed 100 characters"],
     },
 
-    // The organization this project belongs to (tenant boundary).
-    // Optional for now so existing projects can be backfilled by the migration;
-    // flip to `required: true` after backfill (Phase 1 migration step 4).
+    // The organization this project belongs to (tenant boundary). Required:
+    // createProject always sets it from the creator's org. Backfilled for legacy
+    // projects by migrate:orgs.
     organization: {
       type: Schema.Types.ObjectId,
       ref: "Organization",
+      required: [true, "A project must belong to an organization"],
       index: true,
     },
 

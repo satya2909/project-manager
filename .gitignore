@@ -3,5 +3,4 @@ node_modules/
 .claude
 CLAUDE.md
 .gitignore
-frontend/dist/assets/
 docs/superpowers/

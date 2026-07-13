@@ -58,10 +58,12 @@ export const registerUser = asyncHandler(async (req, res) => {
     );
   }
 
-  // Create user (password is hashed by pre-save hook). Organization is attached
-  // below; if org creation fails we compensate by deleting this user, since we
-  // can't rely on multi-document transactions (no replica set assumed).
-  const user = await User.create({ username, email, password, fullName });
+  // Build the user in memory (Mongoose assigns _id client-side) so the org can
+  // reference it as createdBy. The user isn't persisted until organization is
+  // set, since organization is now required. If org creation fails we compensate
+  // by deleting any partial records — we can't rely on multi-document
+  // transactions (no replica set assumed).
+  const user = new User({ username, email, password, fullName });
 
   let organization;
   try {
@@ -73,7 +75,7 @@ export const registerUser = asyncHandler(async (req, res) => {
     });
     user.organization = organization._id;
     user.role = OrgRolesEnum.OWNER;
-    await user.save({ validateBeforeSave: false });
+    await user.save(); // first persist — validates org + hashes password
   } catch (err) {
     // Roll back partial state so a failed signup doesn't orphan records.
     if (organization) await Organization.findByIdAndDelete(organization._id);
