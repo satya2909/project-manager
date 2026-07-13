@@ -1,4 +1,4 @@
-const rateLimit = require('express-rate-limit');
+import rateLimit from 'express-rate-limit';
 
 // POST /auth/register: 3 registration attempts per 15 minutes per IP
 // Prevents registration spam and account enumeration
@@ -55,7 +55,7 @@ const limitInviteAccept = rateLimit({
   },
 });
 
-module.exports = {
+export {
   limitRegister,
   limitInvitePreview,
   limitInviteAccept,
