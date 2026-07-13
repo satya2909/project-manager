@@ -12,6 +12,7 @@ import { verifyJWT, checkOrgRole } from "../middlewares/auth.middlewares.js";
 import { validate } from "../middlewares/validator.middlewares.js";
 import { uploadInviteSheet } from "../middlewares/multer.middlewares.js";
 import { OrgRolesEnum, AvailableOrgRole } from "../utils/constants.js";
+import { limitInvitePreview, limitInviteAccept } from "../middlewares/ratelimit.middlewares.js";
 
 const router = Router();
 
@@ -78,12 +79,13 @@ router.delete(
 
 // ─── GET /invites/:token ──────────────────────────────────────────────────────
 // Public — validate/preview an invite for the accept page.
-router.get("/:token", [tokenParam], validate, getInviteByToken);
+router.get("/:token", limitInvitePreview, [tokenParam], validate, getInviteByToken);
 
 // ─── POST /invites/:token/accept ──────────────────────────────────────────────
 // Public — complete registration and join the org.
 router.post(
   "/:token/accept",
+  limitInviteAccept,
   [
     tokenParam,
     body("username")
