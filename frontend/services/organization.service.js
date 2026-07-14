@@ -17,9 +17,9 @@ const organizationService = {
     return d(res); // { organization }
   },
 
-  /** DELETE /organizations — owner only; blocks if non-empty */
-  deleteOrg: async () => {
-    const res = await api.delete("/organizations");
+  /** DELETE /organizations — owner only; requires current password; blocks if non-empty */
+  deleteOrg: async (password) => {
+    const res = await api.delete("/organizations", { data: { password } });
     return d(res);
   },
 

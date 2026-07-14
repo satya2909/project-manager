@@ -21,6 +21,7 @@ function SettingsTab({ org, onOrgUpdated }) {
   const [msg, setMsg] = useState({ ok: "", err: "" });
 
   const [confirmText, setConfirmText] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [deleting, setDeleting] = useState(false);
   const [deleteErr, setDeleteErr] = useState("");
 
@@ -48,14 +49,18 @@ function SettingsTab({ org, onOrgUpdated }) {
     setDeleteErr("");
     setDeleting(true);
     try {
-      await organizationService.deleteOrg();
+      await organizationService.deleteOrg(confirmPassword);
       // Org + owner account are gone; drop the client session.
       await logout();
     } catch (e) {
       setDeleteErr(e?.response?.data?.message || "Failed to delete organization.");
+      setConfirmPassword("");
       setDeleting(false);
     }
   };
+
+  const canDelete =
+    confirmText === org?.name && confirmPassword.length > 0 && !deleting;
 
   return (
     <div style={{ maxWidth: 560, padding: "20px 4px" }}>
@@ -112,9 +117,10 @@ function SettingsTab({ org, onOrgUpdated }) {
             <p style={S.dangerText}>
               This permanently deletes the workspace and your account, and logs you out.
               You must remove all other members and delete all projects first. Type{" "}
-              <strong style={{ color: "var(--text)" }}>{org?.name}</strong> to confirm.
+              <strong style={{ color: "var(--text)" }}>{org?.name}</strong> and enter your
+              password to confirm.
             </p>
-            <div style={{ display: "flex", gap: 10, marginTop: 12 }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 12 }}>
               <input
                 style={S.input}
                 placeholder={org?.name}
@@ -122,17 +128,28 @@ function SettingsTab({ org, onOrgUpdated }) {
                 onChange={(e) => setConfirmText(e.target.value)}
                 disabled={deleting}
               />
-              <button
-                style={{
-                  ...S.btnDanger,
-                  opacity: confirmText === org?.name && !deleting ? 1 : 0.4,
-                  cursor: confirmText === org?.name && !deleting ? "pointer" : "not-allowed",
-                }}
-                onClick={handleDelete}
-                disabled={confirmText !== org?.name || deleting}
-              >
-                {deleting ? "DELETING..." : "DELETE"}
-              </button>
+              <div style={{ display: "flex", gap: 10 }}>
+                <input
+                  style={S.input}
+                  type="password"
+                  autoComplete="current-password"
+                  placeholder="Your password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  disabled={deleting}
+                />
+                <button
+                  style={{
+                    ...S.btnDanger,
+                    opacity: canDelete ? 1 : 0.4,
+                    cursor: canDelete ? "pointer" : "not-allowed",
+                  }}
+                  onClick={handleDelete}
+                  disabled={!canDelete}
+                >
+                  {deleting ? "DELETING..." : "DELETE"}
+                </button>
+              </div>
             </div>
             {deleteErr && <div style={{ marginTop: 12 }}><InlineError message={deleteErr} /></div>}
           </div>

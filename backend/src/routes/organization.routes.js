@@ -38,7 +38,20 @@ router.put(
 );
 
 // Owner-only danger zone — blocks if the org still has members or projects.
-router.delete("/", checkOrgRole(OrgRolesEnum.OWNER), deleteOrg);
+// Requires the owner's current password: the deletion also destroys the owner's
+// own account, so we re-authenticate identity server-side (the client-side
+// type-to-confirm gate enforces nothing on its own).
+router.delete(
+  "/",
+  checkOrgRole(OrgRolesEnum.OWNER),
+  [
+    body("password")
+      .notEmpty()
+      .withMessage("Password is required to delete the organization"),
+  ],
+  validate,
+  deleteOrg,
+);
 
 // ─── /organizations/members ───────────────────────────────────────────────────
 router.get("/members", getOrgMembers);

@@ -1,3 +1,4 @@
+import mongoose from "mongoose";
 import { Organization, User, Project, Invite } from "../models/index.js";
 import { ApiError } from "../utils/api-error.js";
 import { ApiResponses } from "../utils/api-responses.js";
@@ -45,12 +46,32 @@ export const updateOrg = asyncHandler(async (req, res) => {
 });
 
 // ─── DELETE /organizations ────────────────────────────────────────────────────
-// Owner-only danger zone. Blocks if the org still has other members or any
-// projects — the owner must remove/transfer those first. A solo, project-less
-// org is torn down entirely: pending invites, the org itself, and the owner's
-// own account (a user cannot exist without an org), then the session is cleared.
+// Owner-only danger zone. Because this also destroys the owner's own account,
+// we re-authenticate identity by requiring the current password server-side —
+// the client-side type-to-confirm gate enforces nothing on a direct API call.
+// Blocks if the org still has other members or any projects (the owner must
+// remove/transfer those first). A solo, project-less org is torn down entirely:
+// pending invites, the org itself, and the owner's own account (a user cannot
+// exist without an org), then the session is cleared.
+
+// A transaction is only supported on a replica set / mongos. On a standalone
+// mongod (e.g. local dev) startTransaction throws — detect that and degrade to
+// ordered sequential deletes rather than failing the request.
+const isReplicaSetUnsupported = (err) =>
+  err?.code === 20 ||
+  err?.codeName === "IllegalOperation" ||
+  /replica set|Transaction numbers/i.test(err?.message ?? "");
+
 export const deleteOrg = asyncHandler(async (req, res) => {
   const orgId = req.user.organization;
+  const { password } = req.body;
+
+  // Re-authenticate the owner before doing anything irreversible. Runs before
+  // the emptiness check so a wrong password never reveals org state.
+  const user = await User.findById(req.user._id).select("+password");
+  if (!user || !(await user.isPasswordCorrect(password))) {
+    throw new ApiError(401, "Incorrect password");
+  }
 
   const [otherMembers, projectCount] = await Promise.all([
     User.countDocuments({ organization: orgId, _id: { $ne: req.user._id } }),
@@ -64,9 +85,24 @@ export const deleteOrg = asyncHandler(async (req, res) => {
     );
   }
 
-  await Invite.deleteMany({ organization: orgId });
-  await Organization.findByIdAndDelete(orgId);
-  await User.findByIdAndDelete(req.user._id);
+  const session = await mongoose.startSession();
+  try {
+    await session.withTransaction(async () => {
+      await Invite.deleteMany({ organization: orgId }, { session });
+      await Organization.findByIdAndDelete(orgId, { session });
+      await User.findByIdAndDelete(req.user._id, { session });
+    });
+  } catch (err) {
+    if (!isReplicaSetUnsupported(err)) throw err;
+    // Standalone mongod: no transactions. Delete the owner account first so
+    // that a crash mid-teardown can never leave a live login pointing at a
+    // half-deleted org.
+    await User.findByIdAndDelete(req.user._id);
+    await Organization.findByIdAndDelete(orgId);
+    await Invite.deleteMany({ organization: orgId });
+  } finally {
+    await session.endSession();
+  }
 
   return res
     .status(200)
