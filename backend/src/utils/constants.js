@@ -53,11 +53,16 @@ export const AvailableTaskStatus = Object.values(TaskStatusEnum);
 // Shared cookie config for access + refresh tokens.
 // httpOnly prevents JS access (XSS protection).
 // secure is true only in production (requires HTTPS).
+// sameSite: "none" in production because the frontend (Vercel) and backend
+// (Render) are deployed on different origins — a cross-site cookie needs
+// SameSite=None, which browsers only honor when Secure is also set (true
+// above whenever this applies). "strict" is fine in dev, where the Vite
+// proxy makes requests same-origin.
 
 export const cookieOptions = {
   httpOnly: true,
   secure: process.env.NODE_ENV === "production",
-  sameSite: "strict",
+  sameSite: process.env.NODE_ENV === "production" ? "none" : "strict",
 };
 
 // ─── File Upload ──────────────────────────────────────────────────────────────
