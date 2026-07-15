@@ -5,6 +5,4 @@ CLAUDE.md
 .gitignore
 docs/
 plans/
-.env.example
 frontend/dist/
-    
