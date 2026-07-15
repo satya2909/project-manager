@@ -1,24 +1,205 @@
-// ── Spinner ───────────────────────────────────────────────────────────────────
-export function Spinner({ size = "md" }) {
-  const dim = size === "sm" ? 14 : size === "lg" ? 28 : 18;
-  const border = size === "lg" ? 3 : 2;
+// ═══════════════════════════════════════════════════════════════════════════
+// Shared primitives — Project Camp "Precision Terminal"
+// All className-based, reading tokens from index.css only. Zero hardcoded colors
+// so every primitive repaints correctly under the light/dark toggle.
+// (DESIGN.md §7 / REDESIGN-PLAN.md Phase 1)
+// ═══════════════════════════════════════════════════════════════════════════
+
+// ── Button ────────────────────────────────────────────────────────────────────
+export function Button({ variant = "primary", className = "", children, ...props }) {
+  return (
+    <button className={`btn btn-${variant} ${className}`.trim()} {...props}>
+      {children}
+    </button>
+  );
+}
+
+// ── IconButton ───────────────────────────────────────────────────────────────
+export function IconButton({ className = "", children, ...props }) {
+  return (
+    <button className={`btn-icon ${className}`.trim()} {...props}>
+      {children}
+    </button>
+  );
+}
+
+// ── Card ─────────────────────────────────────────────────────────────────────
+export function Card({ interactive = false, className = "", children, ...props }) {
+  return (
+    <div
+      className={`card ${interactive ? "card-interactive" : ""} ${className}`.trim()}
+      {...props}
+    >
+      {children}
+    </div>
+  );
+}
+
+// ── Badge ────────────────────────────────────────────────────────────────────
+// tone: "todo" | "progress" | "done" | "admin" | "project-admin" | "member"
+export function Badge({ tone = "member", className = "", children, ...props }) {
+  return (
+    <span className={`badge badge-${tone} ${className}`.trim()} {...props}>
+      {children}
+    </span>
+  );
+}
+
+// ── Input + Label ────────────────────────────────────────────────────────────
+export function Label({ className = "", children, ...props }) {
+  return (
+    <label className={`input-label ${className}`.trim()} {...props}>
+      {children}
+    </label>
+  );
+}
+
+export function Input({ as = "input", className = "", ...props }) {
+  const cls = `input-field ${as === "textarea" ? "textarea-field" : ""} ${className}`.trim();
+  if (as === "textarea") return <textarea className={cls} {...props} />;
+  return <input className={cls} {...props} />;
+}
+
+export function Field({ label, error, children }) {
+  return (
+    <div className="input-group">
+      {label && <Label>{label}</Label>}
+      {children}
+      {error && <span className="input-error">{error}</span>}
+    </div>
+  );
+}
+
+// ── Avatar ───────────────────────────────────────────────────────────────────
+export function Avatar({ name = "", size = 28, tone = "brass" }) {
+  const bg =
+    tone === "brass"
+      ? "linear-gradient(135deg, var(--brass), color-mix(in srgb, var(--brass) 70%, #000))"
+      : "var(--panel-hi)";
+  const color = tone === "brass" ? "var(--signal-ink)" : "var(--text-soft)";
   return (
     <span
       style={{
-        display: "inline-block",
-        width: dim,
-        height: dim,
-        border: `${border}px solid var(--border, #1e241e)`,
-        borderTopColor: "var(--phosphor, #00ff41)",
+        width: size,
+        height: size,
         borderRadius: "50%",
-        animation: "spin 600ms linear infinite",
         flexShrink: 0,
+        background: bg,
+        color,
+        display: "inline-flex",
+        alignItems: "center",
+        justifyContent: "center",
+        fontFamily: "var(--font-mono)",
+        fontSize: Math.round(size * 0.4),
+        fontWeight: 600,
+        border: tone === "brass" ? "none" : "1px solid var(--border-hi)",
+      }}
+    >
+      {(name || "U")[0].toUpperCase()}
+    </span>
+  );
+}
+
+// ── Kbd ──────────────────────────────────────────────────────────────────────
+export function Kbd({ children }) {
+  return (
+    <kbd
+      style={{
+        fontFamily: "var(--font-mono)",
+        fontSize: "0.68rem",
+        background: "var(--panel)",
+        border: "1px solid var(--border-hi)",
+        borderRadius: 4,
+        padding: "2px 6px",
+        color: "var(--text-dim)",
+      }}
+    >
+      {children}
+    </kbd>
+  );
+}
+
+// ── SectionLabel — mono eyebrow with a trailing hairline rule (preview motif) ──
+export function SectionLabel({ children, className = "" }) {
+  return (
+    <div
+      className={className}
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        fontFamily: "var(--font-mono)",
+        fontSize: "0.68rem",
+        letterSpacing: "0.1em",
+        textTransform: "uppercase",
+        color: "var(--text-dim)",
+        margin: "0 0 14px",
+      }}
+    >
+      {children}
+      <span style={{ flex: 1, height: 1, background: "var(--border)" }} />
+    </div>
+  );
+}
+
+// ── Skeleton ─────────────────────────────────────────────────────────────────
+export function Skeleton({ width = "100%", height = 14, radius, style }) {
+  return (
+    <span
+      className="skeleton"
+      style={{
+        display: "block",
+        width,
+        height,
+        borderRadius: radius ?? "var(--r-sm)",
+        ...style,
       }}
     />
   );
 }
 
-// ── InlineError ───────────────────────────────────────────────────────────────
+// ── EmptyState ───────────────────────────────────────────────────────────────
+// Empty states are features: warmth, context, one primary action (DESIGN principle #1)
+export function EmptyState({ icon, title, description, action }) {
+  return (
+    <div className="empty-state">
+      {icon && <span style={{ color: "var(--text-dim)" }}>{icon}</span>}
+      {title && (
+        <span
+          style={{
+            fontFamily: "var(--font-display)",
+            fontSize: "1.05rem",
+            fontWeight: 600,
+            color: "var(--text)",
+          }}
+        >
+          {title}
+        </span>
+      )}
+      {description && (
+        <span
+          style={{
+            fontSize: "0.83rem",
+            color: "var(--text-dim)",
+            maxWidth: 320,
+            lineHeight: 1.5,
+          }}
+        >
+          {description}
+        </span>
+      )}
+      {action && <div style={{ marginTop: 6 }}>{action}</div>}
+    </div>
+  );
+}
+
+// ── Spinner ──────────────────────────────────────────────────────────────────
+export function Spinner({ size = "md" }) {
+  const cls = size === "sm" ? "spinner spinner-sm" : size === "lg" ? "spinner spinner-lg" : "spinner";
+  return <span className={cls} />;
+}
+
+// ── InlineError / InlineSuccess (token-driven, mono) ──────────────────────────
 export function InlineError({ message }) {
   if (!message) return null;
   return (
@@ -28,12 +209,13 @@ export function InlineError({ message }) {
         alignItems: "flex-start",
         gap: 8,
         padding: "10px 12px",
-        background: "rgba(255,60,60,0.07)",
-        border: "1px solid rgba(255,60,60,0.25)",
-        fontFamily: "var(--font-mono, monospace)",
+        borderRadius: "var(--r-md)",
+        background: "var(--danger-soft)",
+        border: "1px solid color-mix(in srgb, var(--danger) 28%, transparent)",
+        fontFamily: "var(--font-mono)",
         fontSize: 11,
-        color: "var(--red, #ff3c3c)",
-        letterSpacing: 0.5,
+        color: "var(--danger)",
+        letterSpacing: 0.4,
         lineHeight: 1.5,
       }}
     >
@@ -43,7 +225,6 @@ export function InlineError({ message }) {
   );
 }
 
-// ── InlineSuccess ─────────────────────────────────────────────────────────────
 export function InlineSuccess({ message }) {
   if (!message) return null;
   return (
@@ -53,12 +234,13 @@ export function InlineSuccess({ message }) {
         alignItems: "flex-start",
         gap: 8,
         padding: "10px 12px",
-        background: "rgba(0,255,65,0.07)",
-        border: "1px solid rgba(0,255,65,0.25)",
-        fontFamily: "var(--font-mono, monospace)",
+        borderRadius: "var(--r-md)",
+        background: "var(--signal-soft)",
+        border: "1px solid var(--signal-line)",
+        fontFamily: "var(--font-mono)",
         fontSize: 11,
-        color: "var(--phosphor, #00ff41)",
-        letterSpacing: 0.5,
+        color: "var(--signal)",
+        letterSpacing: 0.4,
         lineHeight: 1.5,
       }}
     >
@@ -68,5 +250,20 @@ export function InlineSuccess({ message }) {
   );
 }
 
-// ── default export: all three ─────────────────────────────────────────────────
-export default { Spinner, InlineError, InlineSuccess };
+export default {
+  Button,
+  IconButton,
+  Card,
+  Badge,
+  Label,
+  Input,
+  Field,
+  Avatar,
+  Kbd,
+  SectionLabel,
+  Skeleton,
+  EmptyState,
+  Spinner,
+  InlineError,
+  InlineSuccess,
+};

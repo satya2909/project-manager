@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion, AnimatePresence, MotionConfig } from "framer-motion";
 import { useAuth } from "./context/authcontext.jsx";
 
 // ── layouts & pages ───────────────────────────────────────────────────────────
@@ -18,42 +18,37 @@ import OrganizationPage from "./pages/app/OrganizationPage.jsx";
 
 // ── modals ────────────────────────────────────────────────────────────────────
 import CreateProjectModal from "./components/ui/CreateProjectModal.jsx";
+import CommandPalette from "./components/ui/CommandPalette.jsx";
 
 // ── services ──────────────────────────────────────────────────────────────────
 import projectService from "./services/project.service.js";
+import { useToast } from "./components/ui/Toast.jsx";
 
-// ─── Boot screen ──────────────────────────────────────────────────────────────
+// ─── Boot screen — calm brand mark + indeterminate loader (no idle pulse) ──────
 function BootScreen() {
-  const [dots, setDots] = useState("");
-  useEffect(() => {
-    const t = setInterval(
-      () => setDots((d) => (d.length >= 3 ? "" : d + ".")),
-      400,
-    );
-    return () => clearInterval(t);
-  }, []);
-
   return (
     <div style={A.boot}>
-      <div style={A.bootInner}>
-        <motion.div
-          animate={{ opacity: [0.4, 1, 0.4] }}
-          transition={{ duration: 1.6, repeat: Infinity }}
-          style={A.bootLogo}
-        >
-          P
-        </motion.div>
-        <div style={A.bootLines}>
-          <span style={A.bootTitle}>PROJECT CAMP</span>
-          <span style={A.bootSub}>INITIALIZING{dots}</span>
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        style={A.bootInner}
+      >
+        <div style={A.bootMark}>
+          <span style={A.bootMarkInner} />
         </div>
-        <motion.div
-          initial={{ scaleX: 0, opacity: 0 }}
-          animate={{ scaleX: 1, opacity: 1 }}
-          transition={{ duration: 0.8, ease: "easeOut" }}
-          style={A.bootBar}
-        />
-      </div>
+        <span style={A.bootTitle}>
+          project<span style={{ color: "var(--signal)" }}>camp</span>
+        </span>
+        <div style={A.bootBarTrack}>
+          <motion.div
+            initial={{ x: "-120%" }}
+            animate={{ x: "220%" }}
+            transition={{ duration: 1, ease: "easeInOut", repeat: Infinity }}
+            style={A.bootBarFill}
+          />
+        </div>
+      </motion.div>
     </div>
   );
 }
@@ -135,7 +130,9 @@ function AuthRouter() {
 
 // ─── Authenticated app router ─────────────────────────────────────────────────
 function AppRouter() {
-  const { user, logout } = useAuth();
+  const { user, logout, isOrgManager } = useAuth();
+  const { toast } = useToast();
+  const [commandOpen, setCommandOpen] = useState(false);
 
   const getAppPageFromUrl = () => {
     const parts = window.location.pathname.split("/").filter(Boolean);
@@ -202,7 +199,10 @@ function AppRouter() {
   const handleCreateProject = async (payload) => {
     const data = await projectService.createProject(payload);
     const created = data?.project;
-    if (created) setProjects((prev) => [created, ...prev]);
+    if (created) {
+      setProjects((prev) => [created, ...prev]);
+      toast(`Project “${created.name}” created`, { kind: "success" });
+    }
     return created;
   };
 
@@ -286,6 +286,7 @@ function AppRouter() {
         }
         onNavigate={handleNavigate}
         onLogout={logout} /* ← THE FIX */
+        onOpenCommand={() => setCommandOpen(true)}
         user={user}
       >
         <AnimatePresence mode="wait">
@@ -306,6 +307,17 @@ function AppRouter() {
         isOpen={showCreateProject}
         onClose={() => setShowCreateProject(false)}
         onSubmit={handleCreateProject}
+      />
+
+      <CommandPalette
+        open={commandOpen}
+        setOpen={setCommandOpen}
+        projects={projects}
+        onOpenProject={handleOpenProject}
+        onNavigate={handleNavigate}
+        onCreateProject={() => setShowCreateProject(true)}
+        canCreateProject={isOrgManager}
+        isOrgManager={isOrgManager}
       />
     </>
   );
@@ -340,12 +352,14 @@ function PlaceholderPage({ label, sub }) {
 // ─── Root ─────────────────────────────────────────────────────────────────────
 export default function App() {
   return (
-    // No inline GLOBAL_CSS block — index.css is the single source of truth now.
-    // The vars previously defined inline (--phosphor, --bg, --surface, etc.)
-    // are all declared in index.css so every component resolves them correctly.
-    <AuthGuard>
-      <AppRouter />
-    </AuthGuard>
+    // MotionConfig reducedMotion="user" makes every motion.* component in the
+    // tree respect prefers-reduced-motion automatically (motion-patterns.md §7).
+    // index.css is the single source of truth for tokens.
+    <MotionConfig reducedMotion="user">
+      <AuthGuard>
+        <AppRouter />
+      </AuthGuard>
+    </MotionConfig>
   );
 }
 
@@ -372,46 +386,33 @@ const A = {
     display: "flex",
     flexDirection: "column",
     alignItems: "center",
-    gap: 20,
+    gap: 18,
   },
-  bootLogo: {
-    width: 62,
-    height: 62,
-    border: "2px solid var(--phosphor)",
+  bootMark: {
+    width: 34,
+    height: 34,
+    borderRadius: "var(--r-sm)",
+    background: "var(--signal)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    color: "var(--phosphor)",
-    fontFamily: "var(--font-display)",
-    fontSize: 26,
-    boxShadow: "0 0 28px rgba(0,255,65,0.25)",
   },
-  bootLines: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 8,
-  },
+  bootMarkInner: { width: 15, height: 15, borderRadius: 2, background: "var(--signal-ink)" },
   bootTitle: {
     color: "var(--text)",
     fontFamily: "var(--font-display)",
-    fontSize: 17,
-    letterSpacing: 6,
+    fontWeight: 600,
+    fontSize: "1rem",
+    letterSpacing: "-0.01em",
   },
-  bootSub: {
-    color: "var(--ghost)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 9,
-    letterSpacing: 3,
+  bootBarTrack: {
+    width: 120,
+    height: 2,
+    borderRadius: 2,
+    background: "var(--border)",
+    overflow: "hidden",
   },
-  bootBar: {
-    width: 200,
-    height: 1,
-    background:
-      "linear-gradient(90deg, transparent, var(--phosphor), transparent)",
-    transformOrigin: "left",
-    boxShadow: "0 0 8px var(--phosphor)",
-  },
+  bootBarFill: { height: "100%", width: "45%", background: "var(--signal)", borderRadius: 2 },
   placeholder: {
     height: "100%",
     display: "flex",

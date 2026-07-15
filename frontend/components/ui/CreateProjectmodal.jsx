@@ -1,402 +1,94 @@
-import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect } from "react";
+import { Modal, ModalHeader } from "./Modal.jsx";
+import { Button, Field, Input, Spinner } from "./primitive.jsx";
 
 export default function CreateProjectModal({ isOpen, onClose, onSubmit }) {
   const [form, setForm] = useState({ name: "", description: "" });
   const [errors, setErrors] = useState({});
   const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
-  const nameRef = useRef(null);
 
-  // Focus name on open
   useEffect(() => {
     if (isOpen) {
-      setTimeout(() => nameRef.current?.focus(), 120);
       setForm({ name: "", description: "" });
       setErrors({});
       setSubmitted(false);
     }
   }, [isOpen]);
 
-  // Close on Escape
-  useEffect(() => {
-    const handler = (e) => {
-      if (e.key === "Escape") onClose();
-    };
-    if (isOpen) window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [isOpen, onClose]);
-
-  const validate = () => {
-    const errs = {};
-    if (!form.name.trim()) errs.name = "PROJECT NAME REQUIRED";
-    else if (form.name.trim().length < 3) errs.name = "MIN 3 CHARACTERS";
-    return errs;
-  };
-
-  const handleSubmit = async () => {
-    const errs = validate();
-    if (Object.keys(errs).length) {
-      setErrors(errs);
-      return;
-    }
-    setLoading(true);
-    try {
-      await onSubmit?.({
-        name: form.name.trim(),
-        description: form.description.trim(),
-      });
-      setSubmitted(true);
-      setTimeout(onClose, 700);
-    } catch (e) {
-      setErrors({ submit: e?.message || "SUBMISSION FAILED" });
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const set = (k) => (e) => {
     setForm((f) => ({ ...f, [k]: e.target.value }));
     setErrors((er) => ({ ...er, [k]: undefined }));
   };
 
+  const validate = () => {
+    const errs = {};
+    if (!form.name.trim()) errs.name = "Project name is required";
+    else if (form.name.trim().length < 3) errs.name = "Use at least 3 characters";
+    return errs;
+  };
+
+  const handleSubmit = async () => {
+    const errs = validate();
+    if (Object.keys(errs).length) return setErrors(errs);
+    setLoading(true);
+    try {
+      await onSubmit?.({ name: form.name.trim(), description: form.description.trim() });
+      setSubmitted(true);
+      setTimeout(onClose, 500);
+    } catch (e) {
+      setErrors({ submit: e?.message || "Couldn't create the project. Try again." });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <AnimatePresence>
-      {isOpen && (
-        <>
-          {/* Backdrop */}
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.2 }}
-            onClick={onClose}
-            style={M.backdrop}
+    <Modal isOpen={isOpen} onClose={onClose} maxWidth={460} labelledBy="create-project-title">
+      <ModalHeader
+        id="create-project-title"
+        title="New project"
+        subtitle="Give it a name and an optional description"
+        onClose={onClose}
+      />
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 20 }}>
+        <Field label="Project name" error={errors.name}>
+          <Input
+            value={form.name}
+            onChange={set("name")}
+            onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
+            placeholder="e.g. Website redesign"
+            maxLength={60}
+            autoFocus
           />
+        </Field>
 
-          {/* Modal */}
-          <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 12 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 8 }}
-            transition={{ duration: 0.22, ease: [0.4, 0, 0.2, 1] }}
-            style={M.modal}
-          >
-            {/* Corner decorators */}
-            <div
-              style={{
-                ...M.corner,
-                top: -1,
-                left: -1,
-                borderTop: "2px solid var(--phosphor)",
-                borderLeft: "2px solid var(--phosphor)",
-              }}
-            />
-            <div
-              style={{
-                ...M.corner,
-                top: -1,
-                right: -1,
-                borderTop: "2px solid var(--phosphor)",
-                borderRight: "2px solid var(--phosphor)",
-              }}
-            />
-            <div
-              style={{
-                ...M.corner,
-                bottom: -1,
-                left: -1,
-                borderBottom: "2px solid var(--phosphor)",
-                borderLeft: "2px solid var(--phosphor)",
-              }}
-            />
-            <div
-              style={{
-                ...M.corner,
-                bottom: -1,
-                right: -1,
-                borderBottom: "2px solid var(--phosphor)",
-                borderRight: "2px solid var(--phosphor)",
-              }}
-            />
+        <Field label="Description">
+          <Input
+            as="textarea"
+            value={form.description}
+            onChange={set("description")}
+            placeholder="What is this project about?"
+            rows={4}
+            maxLength={500}
+          />
+          <span style={{ alignSelf: "flex-end", fontFamily: "var(--font-mono)", fontSize: "0.64rem", color: "var(--text-dim)" }}>
+            {form.description.length}/500
+          </span>
+        </Field>
 
-            {/* Header */}
-            <div style={M.header}>
-              <div style={M.headerLeft}>
-                <div style={M.headerIcon}>◈</div>
-                <div>
-                  <div style={M.title}>INIT NEW PROJECT</div>
-                  <div style={M.subtitle}>SYS://PROJECTS/CREATE</div>
-                </div>
-              </div>
-              <button onClick={onClose} style={M.closeBtn}>
-                ✕
-              </button>
-            </div>
+        {errors.submit && <span className="input-error">{errors.submit}</span>}
+      </div>
 
-            <div style={M.divider} />
-
-            {/* Body */}
-            <div style={M.body}>
-              {/* Name field */}
-              <div style={M.field}>
-                <label style={M.label}>
-                  PROJECT NAME
-                  <span style={M.required}> *</span>
-                </label>
-                <input
-                  ref={nameRef}
-                  value={form.name}
-                  onChange={set("name")}
-                  onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-                  placeholder="E.G. OPERATION BLACKSITE"
-                  style={{
-                    ...M.input,
-                    borderColor: errors.name
-                      ? "var(--red)"
-                      : form.name
-                        ? "rgba(0, 217, 126, 0.3)"
-                        : "var(--border)",
-                    boxShadow: errors.name
-                      ? "0 0 8px rgba(255, 87, 87, 0.15)"
-                      : form.name
-                        ? "0 0 8px rgba(0, 217, 126, 0.1)"
-                        : "none",
-                  }}
-                  maxLength={60}
-                />
-                {errors.name && <span style={M.error}>{errors.name}</span>}
-              </div>
-
-              {/* Description field */}
-              <div style={M.field}>
-                <label style={M.label}>DESCRIPTION</label>
-                <textarea
-                  value={form.description}
-                  onChange={set("description")}
-                  placeholder="BRIEF MISSION OVERVIEW..."
-                  rows={4}
-                  style={{
-                    ...M.input,
-                    ...M.textarea,
-                    borderColor: form.description
-                      ? "rgba(0, 217, 126, 0.3)"
-                      : "var(--border)",
-                    boxShadow: form.description
-                      ? "0 0 8px rgba(0, 217, 126, 0.1)"
-                      : "none",
-                  }}
-                  maxLength={500}
-                />
-                <span style={M.charCount}>{form.description.length}/500</span>
-              </div>
-
-              {errors.submit && (
-                <div style={M.errorBanner}>⚠ {errors.submit}</div>
-              )}
-            </div>
-
-            <div style={M.divider} />
-
-            {/* Footer */}
-            <div style={M.footer}>
-              <button onClick={onClose} style={M.cancelBtn} disabled={loading}>
-                ABORT
-              </button>
-              <button
-                onClick={handleSubmit}
-                style={M.submitBtn}
-                disabled={loading || submitted}
-              >
-                {submitted ? (
-                  <span style={{ color: "var(--phosphor)" }}>
-                    ✓ INITIALIZED
-                  </span>
-                ) : loading ? (
-                  <span style={M.spinner}>◌ PROCESSING...</span>
-                ) : (
-                  "INITIALIZE PROJECT"
-                )}
-              </button>
-            </div>
-          </motion.div>
-        </>
-      )}
-    </AnimatePresence>
+      <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 22 }}>
+        <Button variant="ghost" onClick={onClose} disabled={loading}>
+          Cancel
+        </Button>
+        <Button variant="primary" onClick={handleSubmit} disabled={loading || submitted}>
+          {submitted ? "Created" : loading ? <><Spinner size="sm" /> Creating…</> : "Create project"}
+        </Button>
+      </div>
+    </Modal>
   );
 }
-
-const M = {
-  backdrop: {
-    position: "fixed",
-    inset: 0,
-    background: "rgba(0,0,0,0.7)",
-    backdropFilter: "blur(2px)",
-    zIndex: 1000,
-  },
-  modal: {
-    position: "fixed",
-    top: "50%",
-    left: "50%",
-    transform: "translate(-50%,-50%)",
-    width: 480,
-    background: "linear-gradient(135deg, var(--surface) 0%, rgba(15, 18, 15, 0.8) 100%)",
-    border: "1px solid var(--border)",
-    zIndex: 1001,
-    fontFamily: "var(--font-sans)",
-    boxShadow: "0 20px 60px rgba(0, 0, 0, 0.4), 0 0 1px rgba(0, 217, 126, 0.1)",
-    borderRadius: "12px",
-  },
-  corner: {
-    position: "absolute",
-    width: 12,
-    height: 12,
-  },
-  header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "18px 20px",
-  },
-  headerLeft: {
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-  },
-  headerIcon: {
-    width: 32,
-    height: 32,
-    background: "rgba(0, 217, 126, 0.15)",
-    border: "1px solid rgba(0, 217, 126, 0.3)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    color: "var(--phosphor)",
-    fontSize: 14,
-    boxShadow: "0 0 10px rgba(0, 217, 126, 0.15)",
-    borderRadius: "6px",
-  },
-  title: {
-    color: "var(--text)",
-    fontSize: 13,
-    letterSpacing: 2,
-    fontWeight: 600,
-    fontFamily: "var(--font-sans)",
-  },
-  subtitle: {
-    color: "var(--muted)",
-    fontSize: 8,
-    letterSpacing: 2,
-    marginTop: 2,
-  },
-  closeBtn: {
-    background: "none",
-    border: "none",
-    color: "var(--muted)",
-    cursor: "pointer",
-    fontSize: 12,
-    padding: 4,
-    transition: "color 0.15s",
-  },
-  divider: {
-    height: 1,
-    background: "var(--border)",
-  },
-  body: {
-    padding: "20px",
-    display: "flex",
-    flexDirection: "column",
-    gap: 16,
-  },
-  field: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-    position: "relative",
-  },
-  label: {
-    fontSize: 10,
-    letterSpacing: 1,
-    color: "var(--muted)",
-    fontFamily: "var(--font-sans)",
-    fontWeight: 500,
-  },
-  required: {
-    color: "var(--red)",
-  },
-  input: {
-    background: "var(--bg)",
-    border: "1px solid var(--border)",
-    color: "var(--text)",
-    fontFamily: "var(--font-sans)",
-    fontSize: 12,
-    letterSpacing: 0,
-    padding: "10px 12px",
-    outline: "none",
-    transition: "border-color 160ms ease, box-shadow 160ms ease",
-    width: "100%",
-    boxSizing: "border-box",
-    borderRadius: "8px",
-  },
-  textarea: {
-    resize: "vertical",
-    minHeight: 88,
-    lineHeight: 1.6,
-  },
-  charCount: {
-    fontSize: 8,
-    color: "var(--muted)",
-    letterSpacing: 1,
-    alignSelf: "flex-end",
-  },
-  error: {
-    fontSize: 8,
-    color: "var(--red)",
-    letterSpacing: 2,
-  },
-  errorBanner: {
-    background: "rgba(255,60,60,0.08)",
-    border: "1px solid var(--red)",
-    color: "var(--red)",
-    fontSize: 9,
-    letterSpacing: 1,
-    padding: "8px 12px",
-  },
-  footer: {
-    display: "flex",
-    justifyContent: "flex-end",
-    gap: 10,
-    padding: "14px 20px",
-  },
-  cancelBtn: {
-    background: "transparent",
-    border: "1px solid var(--border)",
-    color: "var(--muted)",
-    fontFamily: "var(--font-sans)",
-    fontSize: 11,
-    fontWeight: 500,
-    letterSpacing: 1,
-    padding: "10px 20px",
-    cursor: "pointer",
-    transition: "all 160ms cubic-bezier(0.16, 1, 0.3, 1)",
-    borderRadius: "8px",
-  },
-  submitBtn: {
-    background: "linear-gradient(135deg, rgba(0, 217, 126, 0.2), rgba(0, 191, 120, 0.1))",
-    border: "1px solid rgba(0, 217, 126, 0.4)",
-    color: "var(--phosphor)",
-    fontFamily: "var(--font-sans)",
-    fontSize: 11,
-    fontWeight: 600,
-    letterSpacing: 1,
-    padding: "10px 22px",
-    cursor: "pointer",
-    transition: "all 160ms cubic-bezier(0.16, 1, 0.3, 1)",
-    borderRadius: "8px",
-    boxShadow: "0 4px 12px rgba(0, 217, 126, 0.2)",
-  },
-  spinner: {
-    animation: "pulse 1s ease-in-out infinite",
-    display: "inline-block",
-  },
-};

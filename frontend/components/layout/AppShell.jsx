@@ -1,721 +1,565 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useLayoutEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
+import { Search, Menu, X } from "lucide-react";
+import ThemeToggle from "../ui/ThemeToggle.jsx";
+import { Kbd } from "../ui/primitive.jsx";
+import { EASE } from "../../motion/tokens";
 
+// ─── Nav model ───────────────────────────────────────────────────────────────
 const NAV_ITEMS = [
-  { id: "dashboard", label: "DASHBOARD", icon: GridIcon },
-  { id: "projects", label: "PROJECTS", icon: FolderIcon },
-  { id: "tasks", label: "MY TASKS", icon: TaskIcon },
+  { id: "dashboard", label: "Dashboard", icon: GridIcon },
+  { id: "projects", label: "Projects", icon: FolderIcon },
+  { id: "tasks", label: "My Tasks", icon: TaskIcon },
 ];
 
-// ─── Icons ────────────────────────────────────────────────────────────────────
+// ─── Icons (currentColor — tokenize via parent color) ─────────────────────────
 function GridIcon() {
   return (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-      <rect
-        x="1"
-        y="1"
-        width="6"
-        height="6"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
-      <rect
-        x="9"
-        y="1"
-        width="6"
-        height="6"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
-      <rect
-        x="1"
-        y="9"
-        width="6"
-        height="6"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
-      <rect
-        x="9"
-        y="9"
-        width="6"
-        height="6"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <rect x="1" y="1" width="6" height="6" stroke="currentColor" strokeWidth="1.5" />
+      <rect x="9" y="1" width="6" height="6" stroke="currentColor" strokeWidth="1.5" />
+      <rect x="1" y="9" width="6" height="6" stroke="currentColor" strokeWidth="1.5" />
+      <rect x="9" y="9" width="6" height="6" stroke="currentColor" strokeWidth="1.5" />
     </svg>
   );
 }
 function FolderIcon() {
   return (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-      <path
-        d="M1 4h5l2 2h7v8H1V4z"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinejoin="round"
-      />
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M1 4h5l2 2h7v8H1V4z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
     </svg>
   );
 }
 function TaskIcon() {
   return (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-      <rect
-        x="1"
-        y="1"
-        width="14"
-        height="14"
-        stroke="currentColor"
-        strokeWidth="1.5"
-      />
-      <path
-        d="M4 5h8M4 8h8M4 11h5"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="square"
-      />
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M6 8l1.5 1.5L11 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+      <rect x="1.5" y="1.5" width="13" height="13" rx="1.5" stroke="currentColor" strokeWidth="1.5" />
     </svg>
   );
 }
 function BuildingIcon() {
   return (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
       <rect x="2" y="1" width="8" height="14" stroke="currentColor" strokeWidth="1.5" />
       <path d="M10 5h4v10h-4" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
-      <path d="M4.5 4h3M4.5 7h3M4.5 10h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="square" />
+      <path d="M4.5 4h3M4.5 7h3M4.5 10h3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
     </svg>
   );
 }
 function LogoutIcon() {
   return (
-    <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-      <path
-        d="M6 2H2v12h4M11 5l3 3-3 3M6 8h8"
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="square"
-        strokeLinejoin="miter"
-      />
+    <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+      <path d="M6 2H2v12h4M11 5l3 3-3 3M6 8h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 function CollapseIcon({ collapsed }) {
   return (
     <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-      <path
-        d={collapsed ? "M3 7h8M8 4l3 3-3 3" : "M11 7H3M6 4L3 7l3 3"}
-        stroke="currentColor"
-        strokeWidth="1.5"
-        strokeLinecap="square"
-        strokeLinejoin="miter"
-      />
+      <path d={collapsed ? "M3 7h8M8 4l3 3-3 3" : "M11 7H3M6 4L3 7l3 3"} stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   );
 }
 
-// ─── Ambient signal bars (sidebar signature element) ──────────────────────────
-// Five thin bars that pulse independently — ambient data atmosphere.
-// Heights and delays are staggered so they feel organic, not mechanical.
-function SignalBars() {
-  const bars = [
-    { delay: "0s", dur: "2.1s" },
-    { delay: "0.4s", dur: "1.8s" },
-    { delay: "0.7s", dur: "2.4s" },
-    { delay: "1.1s", dur: "1.9s" },
-    { delay: "0.2s", dur: "2.6s" },
-  ];
-  return (
-    <div style={S.signalBars}>
-      {bars.map((b, i) => (
-        <div
-          key={i}
-          style={{
-            ...S.signalBar,
-            animationDelay: b.delay,
-            animationDuration: b.dur,
-          }}
-        />
-      ))}
-    </div>
-  );
-}
-
-// ─── AppShell ─────────────────────────────────────────────────────────────────
+// ─── AppShell ────────────────────────────────────────────────────────────────
 export default function AppShell({
   activePage = "dashboard",
-  activeProjectName = null, // shown in topbar when inside a project
+  activeProjectName = null,
   onNavigate,
-  onLogout, // ← was missing, now wired
+  onLogout,
+  onOpenCommand, // ⌘K — wired in Phase 6; safe no-op until then
   children,
   user,
 }) {
   const [collapsed, setCollapsed] = useState(false);
-  const [time, setTime] = useState(new Date());
-  const [scanHover, setScanHover] = useState(null);
   const [logoutConfirm, setLogoutConfirm] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
+  // ── responsive: below 768px the sidebar becomes an off-canvas drawer ──
   useEffect(() => {
-    const t = setInterval(() => setTime(new Date()), 1000);
-    return () => clearInterval(t);
+    const mq = window.matchMedia("(max-width: 767px)");
+    const sync = () => setIsMobile(mq.matches);
+    sync();
+    mq.addEventListener("change", sync);
+    return () => mq.removeEventListener("change", sync);
   }, []);
 
-  const timeStr = time.toTimeString().slice(0, 8);
-  const dateStr = time
-    .toLocaleDateString("en-US", {
-      month: "short",
-      day: "2-digit",
-      year: "numeric",
-    })
-    .toUpperCase();
+  // Org owner/admin see the Organization admin area.
+  const isOrgManager = user?.role === "owner" || user?.role === "admin";
+  const navItems = isOrgManager
+    ? [...NAV_ITEMS, { id: "organization", label: "Organization", icon: BuildingIcon }]
+    : NAV_ITEMS;
 
-  // Two-step logout: first click arms the button, second click fires.
+  const railCollapsed = collapsed && !isMobile;
+
+  // ── sliding nav pill: measure the active item and glide the pill to it ──
+  const itemRefs = useRef({});
+  const [pill, setPill] = useState({ y: 0, h: 34, visible: false });
+  useLayoutEffect(() => {
+    const el = itemRefs.current[activePage];
+    if (el) setPill({ y: el.offsetTop, h: el.offsetHeight, visible: true });
+    else setPill((p) => ({ ...p, visible: false }));
+  }, [activePage, railCollapsed, navItems.length, mobileOpen, isMobile]);
+
+  // Two-step logout: first click arms, second fires; auto-disarms after 3s.
   const handleLogoutClick = () => {
     if (logoutConfirm) {
       onLogout?.();
       setLogoutConfirm(false);
     } else {
       setLogoutConfirm(true);
-      // Auto-disarm after 3 seconds if user doesn't confirm
       setTimeout(() => setLogoutConfirm(false), 3000);
     }
   };
 
-  // Derive breadcrumb path for topbar
-  const crumbPage = activeProjectName
-    ? `PROJECTS/${activeProjectName.toUpperCase()}`
-    : activePage.toUpperCase();
+  const handleNavigate = (id) => {
+    onNavigate?.(id);
+    if (isMobile) setMobileOpen(false);
+  };
 
-  // Role display (user.role is the ORG role: owner / admin / member)
+  // Breadcrumb
+  const crumbRoot = activeProjectName ? "Projects" : "Workspace";
+  const crumbCurrent =
+    activeProjectName ||
+    navItems.find((n) => n.id === activePage)?.label ||
+    activePage.charAt(0).toUpperCase() + activePage.slice(1);
+
   const roleLabel = user?.role ? user.role.toUpperCase() : "MEMBER";
   const roleColor =
     user?.role === "owner"
-      ? "var(--amber, #f0a500)"
+      ? "var(--brass)"
       : user?.role === "admin"
-        ? "var(--ice)"
-        : "var(--phosphor)";
+        ? "var(--signal)"
+        : "var(--text-soft)";
 
-  // Org owner/admin see the Organization admin area.
-  const isOrgManager = user?.role === "owner" || user?.role === "admin";
-  const navItems = isOrgManager
-    ? [...NAV_ITEMS, { id: "organization", label: "ORGANIZATION", icon: BuildingIcon }]
-    : NAV_ITEMS;
+  const sidebarWidth = railCollapsed ? 60 : 232;
 
-  return (
-    <div style={S.root}>
-      {/* SIDEBAR */}
-      <motion.aside
-        animate={{ width: collapsed ? 56 : 216 }}
-        transition={{ duration: 0.2, ease: [0.4, 0, 0.2, 1] }}
-        style={S.sidebar}
-      >
-        {/* Ambient signal bars — signature element */}
-        <SignalBars />
-
-        {/* Logo / Brand */}
-        <div style={S.brand}>
-          <div style={S.brandLogo}>
-            <span style={S.brandLogoInner}>P</span>
-          </div>
-          <AnimatePresence>
-            {!collapsed && (
-              <motion.div
-                initial={{ opacity: 0, x: -6 }}
-                animate={{ opacity: 1, x: 0 }}
-                exit={{ opacity: 0, x: -6 }}
-                transition={{ duration: 0.15 }}
-                style={S.brandText}
-              >
-                <span style={S.brandName}>PROJECT</span>
-                <span style={S.brandSub}>CAMP</span>
-              </motion.div>
-            )}
-          </AnimatePresence>
+  // ── sidebar content (shared between desktop and mobile drawer) ──
+  const sidebarInner = (
+    <>
+      {/* Brand */}
+      <div style={S.brand}>
+        <div style={S.brandMark}>
+          <span style={S.brandMarkInner} />
         </div>
-
-        {/* Clock — only when expanded */}
         <AnimatePresence>
-          {!collapsed && (
+          {!railCollapsed && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              style={S.clock}
+              initial={{ opacity: 0, x: -6 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -6 }}
+              transition={{ duration: 0.15 }}
+              style={S.brandText}
             >
-              <span style={S.clockTime}>{timeStr}</span>
-              <span style={S.clockDate}>{dateStr}</span>
+              project<span style={{ color: "var(--signal)" }}>camp</span>
             </motion.div>
           )}
         </AnimatePresence>
+        {isMobile && (
+          <button aria-label="Close menu" onClick={() => setMobileOpen(false)} style={S.drawerClose}>
+            <X size={18} />
+          </button>
+        )}
+      </div>
 
-        <div style={S.divider} />
-
-        {/* Navigation */}
+      {/* Nav */}
+      <div style={{ marginTop: 22 }}>
+        {!railCollapsed && <div style={S.navGroupLabel}>Workspace</div>}
         <nav style={S.nav}>
+          {/* sliding pill */}
+          {pill.visible && (
+            <motion.div
+              aria-hidden
+              animate={{ y: pill.y, height: pill.h }}
+              transition={{ duration: 0.34, ease: EASE }}
+              style={S.navPill}
+            />
+          )}
           {navItems.map((item) => {
             const isActive = activePage === item.id;
-            const isHovered = scanHover === item.id;
             return (
               <button
                 key={item.id}
-                onClick={() => onNavigate?.(item.id)}
-                onMouseEnter={() => setScanHover(item.id)}
-                onMouseLeave={() => setScanHover(null)}
-                aria-label={item.label}
+                ref={(el) => (itemRefs.current[item.id] = el)}
+                onClick={() => handleNavigate(item.id)}
                 aria-current={isActive ? "page" : undefined}
+                aria-label={item.label}
                 style={{
                   ...S.navItem,
-                  ...(isActive ? S.navItemActive : {}),
-                  ...(isHovered && !isActive ? S.navItemHover : {}),
-                  justifyContent: collapsed ? "center" : "flex-start",
-                  paddingLeft: collapsed ? 0 : undefined,
+                  justifyContent: railCollapsed ? "center" : "flex-start",
+                  color: isActive ? "var(--text)" : "var(--text-dim)",
                 }}
               >
-                {isActive && <div style={S.activeBar} />}
-
-                {(isHovered || isActive) && (
-                  <motion.div
-                    key={item.id + "-sweep"}
-                    initial={{ x: "-100%" }}
-                    animate={{ x: "200%" }}
-                    transition={{ duration: 0.55, ease: "linear" }}
-                    style={S.scanSweep}
-                  />
-                )}
-
                 <span
                   style={{
                     ...S.navIcon,
-                    color: isActive
-                      ? "var(--phosphor)"
-                      : isHovered
-                        ? "var(--text-soft)"
-                        : "var(--muted)",
+                    color: isActive ? "var(--signal)" : "inherit",
                   }}
                 >
                   <item.icon />
                 </span>
-
-                <AnimatePresence>
-                  {!collapsed && (
-                    <motion.span
-                      initial={{ opacity: 0 }}
-                      animate={{ opacity: 1 }}
-                      exit={{ opacity: 0 }}
-                      style={{
-                        ...S.navLabel,
-                        color: isActive
-                          ? "var(--phosphor)"
-                          : isHovered
-                            ? "var(--text-soft)"
-                            : "var(--ghost)",
-                      }}
-                    >
-                      {item.label}
-                    </motion.span>
-                  )}
-                </AnimatePresence>
+                {!railCollapsed && <span style={S.navLabel}>{item.label}</span>}
               </button>
             );
           })}
         </nav>
+      </div>
 
-        <div style={{ flex: 1 }} />
-        <div style={S.divider} />
+      <div style={{ flex: 1 }} />
 
-        {/* User block + Logout */}
-        <div style={{ padding: "10px 8px 8px" }}>
-          {!collapsed && user && (
-            <div style={S.userBlock}>
-              <div style={S.userAvatar}>
-                {(user.fullName || user.username || "U")[0].toUpperCase()}
-              </div>
-              <div style={S.userInfo}>
-                <span style={S.userName}>
-                  {(user.fullName || user.username || "OPERATOR")
-                    .toUpperCase()
-                    .slice(0, 14)}
-                </span>
-                <span style={{ ...S.userRole, color: roleColor }}>
-                  {roleLabel}
-                </span>
-              </div>
+      {/* User + logout */}
+      <div style={S.foot}>
+        {!railCollapsed && user && (
+          <div style={S.userBlock}>
+            <div style={S.userAvatar}>
+              {(user.fullName || user.username || "U")[0].toUpperCase()}
             </div>
-          )}
+            <div style={S.userInfo}>
+              <span style={S.userName}>
+                {(user.fullName || user.username || "Operator").slice(0, 18)}
+              </span>
+              <span style={{ ...S.userRole, color: roleColor }}>{roleLabel}</span>
+            </div>
+          </div>
+        )}
 
-          {/* LOGOUT — wired to onLogout prop with two-step confirm */}
-          <button
-            onClick={handleLogoutClick}
-            onBlur={() => setLogoutConfirm(false)}
-            aria-label="Log out"
+        <button
+          onClick={handleLogoutClick}
+          onBlur={() => setLogoutConfirm(false)}
+          aria-label="Log out"
+          style={{
+            ...S.navItem,
+            justifyContent: railCollapsed ? "center" : "flex-start",
+            marginTop: 4,
+            ...(logoutConfirm
+              ? {
+                  background: "var(--danger-soft)",
+                  borderColor: "color-mix(in srgb, var(--danger) 30%, transparent)",
+                  color: "var(--danger)",
+                }
+              : {}),
+          }}
+        >
+          <span
             style={{
-              ...S.navItem,
-              justifyContent: collapsed ? "center" : "flex-start",
-              marginTop: 4,
-              width: "100%",
-              ...(logoutConfirm
-                ? {
-                    background: "rgba(255,60,60,0.08)",
-                    borderColor: "rgba(255,60,60,0.25)",
-                    color: "var(--red)",
-                  }
-                : {}),
+              ...S.navIcon,
+              color: logoutConfirm ? "var(--danger)" : "var(--text-dim)",
             }}
           >
-            <span
-              style={{
-                ...S.navIcon,
-                color: logoutConfirm ? "var(--red)" : "var(--ghost)",
-              }}
-            >
-              <LogoutIcon />
+            <LogoutIcon />
+          </span>
+          {!railCollapsed && (
+            <span style={{ ...S.navLabel, color: logoutConfirm ? "var(--danger)" : undefined }}>
+              {logoutConfirm ? "Confirm?" : "Logout"}
             </span>
-            <AnimatePresence>
-              {!collapsed && (
-                <motion.span
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  style={{
-                    ...S.navLabel,
-                    color: logoutConfirm ? "var(--red)" : "var(--ghost)",
-                  }}
-                >
-                  {logoutConfirm ? "CONFIRM?" : "LOGOUT"}
-                </motion.span>
-              )}
-            </AnimatePresence>
-          </button>
-        </div>
+          )}
+        </button>
+      </div>
 
-        {/* Collapse toggle */}
+      {/* Collapse toggle — desktop only */}
+      {!isMobile && (
         <button
-          onClick={() => setCollapsed(!collapsed)}
+          onClick={() => setCollapsed((c) => !c)}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           style={S.collapseBtn}
         >
           <CollapseIcon collapsed={collapsed} />
         </button>
-      </motion.aside>
+      )}
+    </>
+  );
 
-      {/* MAIN AREA */}
+  return (
+    <div style={S.root}>
+      {/* ── SIDEBAR ── */}
+      {isMobile ? (
+        <AnimatePresence>
+          {mobileOpen && (
+            <>
+              <motion.div
+                key="veil"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.2, ease: EASE }}
+                onClick={() => setMobileOpen(false)}
+                style={S.drawerVeil}
+              />
+              <motion.aside
+                key="drawer"
+                initial={{ x: "-100%" }}
+                animate={{ x: 0 }}
+                exit={{ x: "-100%" }}
+                transition={{ duration: 0.3, ease: EASE }}
+                style={{ ...S.sidebar, ...S.sidebarDrawer }}
+              >
+                {sidebarInner}
+              </motion.aside>
+            </>
+          )}
+        </AnimatePresence>
+      ) : (
+        <motion.aside
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1, width: sidebarWidth }}
+          transition={{ opacity: { duration: 0.4, ease: EASE }, width: { duration: 0.24, ease: EASE } }}
+          style={{ ...S.sidebar, width: sidebarWidth }}
+        >
+          {sidebarInner}
+        </motion.aside>
+      )}
+
+      {/* ── MAIN ── */}
       <div style={S.main}>
-        {/* Topbar */}
-        <header style={S.topbar}>
+        <motion.header
+          initial={{ opacity: 0, y: -6 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.4, ease: EASE, delay: 0.05 }}
+          style={S.topbar}
+        >
           <div style={S.topbarLeft}>
-            <span style={S.topbarCrumb}>PROJECTCAMP/</span>
-            <span style={S.topbarCrumbPage}>{crumbPage}</span>
-            <span style={S.topbarBlink}>▮</span>
+            {isMobile && (
+              <button aria-label="Open menu" onClick={() => setMobileOpen(true)} style={S.hamburger}>
+                <Menu size={18} />
+              </button>
+            )}
+            <span style={S.crumbRoot}>{crumbRoot}</span>
+            <span style={S.crumbSep}>/</span>
+            <span style={S.crumbCurrent}>{crumbCurrent}</span>
           </div>
-          <div style={S.topbarRight}>
-            <div style={S.statusDot} />
-            <span style={S.statusText}>SYSTEM ONLINE</span>
-          </div>
-        </header>
 
-        {/* Page content */}
+          <div style={S.topbarRight}>
+            <button
+              onClick={() => onOpenCommand?.()}
+              style={S.cmdkTrigger}
+              aria-label="Open command palette"
+            >
+              <Search size={14} style={{ color: "var(--text-dim)" }} />
+              {!isMobile && <span style={{ flex: 1, textAlign: "left" }}>Jump to…</span>}
+              {!isMobile && <Kbd>⌘K</Kbd>}
+            </button>
+            <ThemeToggle />
+          </div>
+        </motion.header>
+
         <main style={S.content}>{children}</main>
       </div>
     </div>
   );
 }
 
-// ─── Styles ───────────────────────────────────────────────────────────────────
+// ─── Styles (100% token-driven — no literal colors) ───────────────────────────
 const S = {
   root: {
     display: "flex",
     height: "100vh",
     width: "100vw",
     background: "var(--bg)",
-    fontFamily: "var(--font-mono)",
+    fontFamily: "var(--font-sans)",
     position: "relative",
     overflow: "hidden",
   },
 
   // Sidebar
   sidebar: {
-    background: "var(--surface)",
+    background: "linear-gradient(180deg, var(--surface), var(--bg) 60%)",
     borderRight: "1px solid var(--border)",
     display: "flex",
     flexDirection: "column",
     flexShrink: 0,
     position: "relative",
     overflow: "hidden",
+    padding: "20px 14px 14px",
   },
-
-  // Ambient signal bars
-  signalBars: {
-    position: "absolute",
-    bottom: 80,
-    right: 8,
+  sidebarDrawer: {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: 264,
+    zIndex: 80,
+    boxShadow: "var(--shadow-xl)",
+  },
+  drawerVeil: {
+    position: "fixed",
+    inset: 0,
+    background: "rgba(6,7,8,.6)",
+    backdropFilter: "blur(2px)",
+    zIndex: 79,
+  },
+  drawerClose: {
+    marginLeft: "auto",
+    background: "none",
+    border: "none",
+    color: "var(--text-dim)",
+    cursor: "pointer",
     display: "flex",
-    alignItems: "flex-end",
-    gap: 2,
-    height: 28,
-    opacity: 0.35,
-    pointerEvents: "none",
-  },
-  signalBar: {
-    width: 2,
-    background: "var(--phosphor)",
-    borderRadius: 1,
-    animation: "signal-bar 2s ease-in-out infinite",
-    boxShadow: "0 0 4px var(--phosphor)",
+    padding: 4,
   },
 
   // Brand
-  brand: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    padding: "18px 14px 14px",
-  },
-  brandLogo: {
-    width: 30,
-    height: 30,
-    border: "1.5px solid var(--phosphor)",
+  brand: { display: "flex", alignItems: "center", gap: 10, padding: "0 4px", minHeight: 26 },
+  brandMark: {
+    width: 26,
+    height: 26,
+    borderRadius: "var(--r-sm)",
+    background: "var(--signal)",
+    flexShrink: 0,
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    flexShrink: 0,
-    boxShadow: "0 0 8px rgba(0,255,65,0.25)",
   },
-  brandLogoInner: {
-    color: "var(--phosphor)",
-    fontSize: 13,
-    fontWeight: "bold",
-    letterSpacing: 1,
-    fontFamily: "var(--font-display)",
+  brandMarkInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 1,
+    background: "var(--signal-ink)",
   },
   brandText: {
-    display: "flex",
-    flexDirection: "column",
-    lineHeight: 1,
-    overflow: "hidden",
+    fontFamily: "var(--font-display)",
+    fontWeight: 600,
+    fontSize: "1.02rem",
+    letterSpacing: "-0.01em",
+    color: "var(--text)",
     whiteSpace: "nowrap",
+    overflow: "hidden",
   },
-  brandName: {
-    color: "var(--phosphor)",
-    fontFamily: "var(--font-display)",
-    fontSize: 12,
-    letterSpacing: 4,
-  },
-  brandSub: {
-    color: "var(--ghost)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 8,
-    letterSpacing: 5,
-    marginTop: 3,
-  },
-
-  // Clock
-  clock: {
-    padding: "0 14px 12px",
-    display: "flex",
-    flexDirection: "column",
-    gap: 2,
-  },
-  clockTime: {
-    color: "var(--phosphor)",
-    fontFamily: "var(--font-display)",
-    fontSize: 17,
-    letterSpacing: 2,
-    textShadow: "0 0 10px rgba(0,255,65,0.5)",
-  },
-  clockDate: {
-    color: "var(--muted)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 9,
-    letterSpacing: 2,
-  },
-
-  divider: { height: 1, background: "var(--border)", margin: "0 8px" },
 
   // Nav
-  nav: {
-    display: "flex",
-    flexDirection: "column",
-    padding: "8px",
-    gap: 2,
+  navGroupLabel: {
+    fontFamily: "var(--font-mono)",
+    fontSize: "0.64rem",
+    letterSpacing: "0.1em",
+    color: "var(--muted)",
+    textTransform: "uppercase",
+    padding: "0 10px",
+    marginBottom: 6,
+  },
+  nav: { display: "flex", flexDirection: "column", gap: 2, position: "relative" },
+  navPill: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    top: 0,
+    borderRadius: "var(--r-md)",
+    background: "var(--panel-hi)",
+    border: "1px solid var(--border-hi)",
+    zIndex: 0,
+    pointerEvents: "none",
   },
   navItem: {
+    position: "relative",
+    zIndex: 1,
     display: "flex",
     alignItems: "center",
-    gap: 9,
+    gap: 10,
     padding: "8px 10px",
+    minHeight: 34,
     background: "none",
     border: "1px solid transparent",
     borderRadius: "var(--r-md)",
     cursor: "pointer",
-    position: "relative",
-    overflow: "hidden",
-    transition: "background 0.15s, border-color 0.15s",
     width: "100%",
     textAlign: "left",
+    fontFamily: "var(--font-sans)",
+    fontSize: "0.86rem",
+    fontWeight: 500,
+    transition: "color 0.2s var(--ease)",
   },
-  navItemActive: {
-    background: "rgba(0,255,65,0.05)",
-    borderColor: "rgba(0,255,65,0.1)",
-  },
-  navItemHover: {
-    background: "rgba(0,255,65,0.025)",
-  },
-  activeBar: {
-    position: "absolute",
-    left: 0,
-    top: "20%",
-    height: "60%",
-    width: 2,
-    background: "var(--phosphor)",
-    boxShadow: "0 0 6px var(--phosphor)",
-    borderRadius: "0 1px 1px 0",
-  },
-  scanSweep: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    width: "30%",
-    height: "100%",
-    background:
-      "linear-gradient(90deg, transparent, rgba(0,255,65,0.07), transparent)",
-    pointerEvents: "none",
-  },
-  navIcon: {
-    flexShrink: 0,
-    display: "flex",
-    alignItems: "center",
-    transition: "color 0.15s",
-    width: 15,
-  },
-  navLabel: {
-    fontSize: 10,
-    letterSpacing: 2,
-    fontWeight: "bold",
-    fontFamily: "var(--font-mono)",
-    transition: "color 0.15s",
-    whiteSpace: "nowrap",
-  },
+  navIcon: { flexShrink: 0, display: "flex", alignItems: "center", transition: "color 0.2s var(--ease)" },
+  navLabel: { whiteSpace: "nowrap" },
 
-  // User block
-  userBlock: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    padding: "6px 10px 8px",
-  },
+  // Foot
+  foot: { paddingTop: 14, borderTop: "1px solid var(--border)", marginTop: 8 },
+  userBlock: { display: "flex", alignItems: "center", gap: 10, padding: "4px 6px 8px" },
   userAvatar: {
-    width: 26,
-    height: 26,
-    background: "rgba(0,255,65,0.1)",
-    border: "1px solid rgba(0,255,65,0.3)",
+    width: 28,
+    height: 28,
+    borderRadius: "50%",
+    background: "linear-gradient(135deg, var(--brass), color-mix(in srgb, var(--brass) 65%, #000))",
+    color: "var(--signal-ink)",
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    color: "var(--phosphor)",
+    fontFamily: "var(--font-mono)",
     fontSize: 11,
-    fontWeight: "bold",
+    fontWeight: 600,
     flexShrink: 0,
-    fontFamily: "var(--font-mono)",
   },
-  userInfo: {
-    display: "flex",
-    flexDirection: "column",
-    overflow: "hidden",
-    gap: 2,
-  },
+  userInfo: { display: "flex", flexDirection: "column", overflow: "hidden", gap: 1 },
   userName: {
-    color: "var(--text)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 10,
-    letterSpacing: 1,
+    color: "var(--text-soft)",
+    fontSize: "0.78rem",
+    fontWeight: 500,
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
-  userRole: {
-    fontFamily: "var(--font-mono)",
-    fontSize: 8,
-    letterSpacing: 2,
-  },
+  userRole: { fontFamily: "var(--font-mono)", fontSize: "0.62rem", letterSpacing: "0.08em" },
 
-  // Collapse toggle
   collapseBtn: {
     position: "absolute",
     bottom: 10,
-    right: 8,
+    right: 10,
     background: "none",
     border: "none",
     cursor: "pointer",
-    color: "var(--dim)",
+    color: "var(--muted)",
     padding: 4,
     display: "flex",
-    transition: "color 0.15s",
     borderRadius: "var(--r-sm)",
   },
 
   // Main
-  main: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    overflow: "hidden",
-    minWidth: 0,
-  },
+  main: { flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 },
   topbar: {
-    height: 46,
+    height: 58,
     borderBottom: "1px solid var(--border)",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
-    padding: "0 24px",
-    background: "var(--surface)",
+    padding: "0 20px",
     flexShrink: 0,
+    gap: 16,
   },
-  topbarLeft: {
+  topbarLeft: { display: "flex", alignItems: "center", gap: 8, minWidth: 0 },
+  hamburger: {
+    background: "none",
+    border: "none",
+    color: "var(--text-soft)",
+    cursor: "pointer",
     display: "flex",
-    alignItems: "center",
-    gap: 0,
+    padding: 4,
+    marginRight: 2,
   },
-  topbarCrumb: {
-    color: "var(--ghost)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 10,
-    letterSpacing: 1,
+  crumbRoot: { fontSize: "0.86rem", color: "var(--text-dim)" },
+  crumbSep: { fontSize: "0.86rem", color: "var(--muted)" },
+  crumbCurrent: {
+    fontSize: "0.86rem",
+    color: "var(--text)",
+    fontWeight: 600,
+    whiteSpace: "nowrap",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
   },
-  topbarCrumbPage: {
-    color: "var(--phosphor-dim)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 10,
-    letterSpacing: 1,
-  },
-  topbarBlink: {
-    color: "var(--phosphor)",
-    fontSize: 10,
-    animation: "blink 1s step-end infinite",
-    marginLeft: 4,
-  },
-  topbarRight: {
+  topbarRight: { display: "flex", alignItems: "center", gap: 12, flexShrink: 0 },
+  cmdkTrigger: {
     display: "flex",
     alignItems: "center",
     gap: 8,
+    background: "var(--surface-2)",
+    border: "1px solid var(--border)",
+    borderRadius: "var(--r-md)",
+    padding: "7px 10px 7px 12px",
+    color: "var(--text-dim)",
+    fontSize: "0.8rem",
+    fontFamily: "var(--font-sans)",
+    cursor: "pointer",
+    width: 220,
+    maxWidth: "42vw",
+    transition: "border-color 0.2s var(--ease), background 0.2s var(--ease), color 0.2s var(--ease)",
   },
-  statusDot: {
-    width: 5,
-    height: 5,
-    borderRadius: "50%",
-    background: "var(--phosphor)",
-    boxShadow: "0 0 6px var(--phosphor)",
-    animation: "pulse-signal 2s ease-in-out infinite",
-  },
-  statusText: {
-    color: "var(--ghost)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 9,
-    letterSpacing: 2,
-  },
-  content: {
-    flex: 1,
-    overflow: "auto",
-    padding: "24px",
-  },
+  content: { flex: 1, overflow: "auto", padding: "28px 32px 64px" },
 };

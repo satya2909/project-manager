@@ -1,7 +1,8 @@
 import { useState } from "react";
-import { Eye, EyeOff, ArrowRight, UserPlus, Check } from "lucide-react";
+import { Eye, EyeOff, ArrowRight, Check } from "lucide-react";
 import { useAuth } from "../../context/authcontext";
 import { InlineError, InlineSuccess, Spinner } from "../../components/ui/primitive.jsx";
+import { authTitle, authSubtitle, authFoot, authFootLink } from "./LoginPage.jsx";
 
 // ─── PASSWORD STRENGTH ────────────────────────────────────────────────────────
 function getStrength(password) {
@@ -119,55 +120,9 @@ export default function RegisterPage({ onNavigate }) {
   return (
     <div className="animate-fade-up delay-0">
       {/* Header */}
-      <div style={{ marginBottom: "2.25rem" }}>
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            background: "var(--ice-dim)",
-            border: "1px solid rgba(77,184,255,0.2)",
-            borderRadius: "var(--r-sm)",
-            padding: "0.25rem 0.65rem",
-            marginBottom: "1.25rem",
-          }}
-        >
-          <UserPlus size={11} color="var(--ice)" />
-          <span
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: "0.65rem",
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              color: "var(--ice)",
-            }}
-          >
-            new account
-          </span>
-        </div>
-
-        <h2
-          style={{
-            fontFamily: "var(--font-display)",
-            fontSize: "2rem",
-            fontWeight: 800,
-            letterSpacing: "-0.03em",
-            color: "var(--text-bright)",
-            marginBottom: "0.5rem",
-            lineHeight: 1.1,
-          }}
-        >
-          Create your workspace.
-        </h2>
-        <p
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "0.82rem",
-            color: "var(--ghost)",
-          }}
-        >
-          Start a new company workspace — you'll be its owner
-        </p>
+      <div style={{ marginBottom: "1.75rem" }}>
+        <h2 style={authTitle}>Create your workspace</h2>
+        <p style={authSubtitle}>Start a new workspace — you'll be its owner</p>
       </div>
 
       {/* Form */}
@@ -419,46 +374,21 @@ export default function RegisterPage({ onNavigate }) {
         className="animate-fade-up delay-300"
         style={{
           marginTop: "1rem",
-          fontFamily: "var(--font-mono)",
-          fontSize: "0.7rem",
-          color: "var(--dim)",
+          fontSize: "0.72rem",
+          color: "var(--text-dim)",
           textAlign: "center",
           lineHeight: 1.6,
         }}
       >
         By creating an account you agree to our{" "}
-        <span style={{ color: "var(--ghost)" }}>terms of service</span>.
+        <span style={{ color: "var(--text-soft)" }}>terms of service</span>.
       </p>
 
       {/* Footer */}
-      <div
-        className="animate-fade-up delay-400"
-        style={{
-          marginTop: "1.5rem",
-          paddingTop: "1.5rem",
-          borderTop: "1px solid var(--edge)",
-          textAlign: "center",
-          fontFamily: "var(--font-mono)",
-          fontSize: "0.8rem",
-          color: "var(--ghost)",
-        }}
-      >
-        already have access?{" "}
-        <button
-          type="button"
-          onClick={() => onNavigate("login")}
-          className="link"
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontWeight: 500,
-            padding: 0,
-            fontFamily: "var(--font-mono)",
-            fontSize: "0.8rem",
-          }}
-        >
-          sign in →
+      <div className="animate-fade-up delay-400" style={authFoot}>
+        Already have an account?{" "}
+        <button type="button" onClick={() => onNavigate("login")} className="link" style={authFootLink}>
+          Sign in
         </button>
       </div>
     </div>

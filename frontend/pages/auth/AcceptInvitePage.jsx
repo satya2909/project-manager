@@ -1,11 +1,9 @@
 import { useState, useEffect } from "react";
-import { Eye, EyeOff, ArrowRight, Mail, Check, ShieldCheck } from "lucide-react";
+import { Eye, EyeOff, ArrowRight, Mail, Check } from "lucide-react";
 import { useAuth } from "../../context/authcontext";
 import inviteService from "../../services/invite.service.js";
-import {
-  InlineError,
-  Spinner,
-} from "../../components/ui/primitive.jsx";
+import { InlineError, Spinner } from "../../components/ui/primitive.jsx";
+import { authTitle, authSubtitle, authFoot, authFootLink } from "./LoginPage.jsx";
 
 // ─── ACCEPT INVITE PAGE ───────────────────────────────────────────────────────
 // Reached via the emailed link /accept-invite/:token while logged out.
@@ -103,15 +101,8 @@ export default function AcceptInvitePage({ token, onNavigate }) {
         }}
       >
         <Spinner size="md" />
-        <span
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "0.8rem",
-            color: "var(--ghost)",
-            letterSpacing: "0.08em",
-          }}
-        >
-          validating invitation...
+        <span style={{ fontSize: "0.83rem", color: "var(--text-dim)" }}>
+          Validating your invitation…
         </span>
       </div>
     );
@@ -121,17 +112,7 @@ export default function AcceptInvitePage({ token, onNavigate }) {
   if (previewError) {
     return (
       <div className="animate-fade-up delay-0">
-        <h2
-          style={{
-            fontFamily: "var(--font-display)",
-            fontSize: "1.6rem",
-            fontWeight: 800,
-            color: "var(--text-bright)",
-            marginBottom: "0.75rem",
-          }}
-        >
-          Invitation unavailable
-        </h2>
+        <h2 style={{ ...authTitle, marginBottom: "0.75rem" }}>Invitation unavailable</h2>
         <div style={{ marginBottom: "1.25rem" }}>
           <InlineError message={previewError} />
         </div>
@@ -141,7 +122,7 @@ export default function AcceptInvitePage({ token, onNavigate }) {
           className="btn btn-primary"
           style={{ width: "100%", justifyContent: "center", padding: "0.75rem" }}
         >
-          go to sign in <ArrowRight size={15} />
+          Go to sign in <ArrowRight size={15} />
         </button>
       </div>
     );
@@ -151,56 +132,12 @@ export default function AcceptInvitePage({ token, onNavigate }) {
   return (
     <div className="animate-fade-up delay-0">
       {/* Header */}
-      <div style={{ marginBottom: "2rem" }}>
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            background: "var(--ice-dim)",
-            border: "1px solid rgba(77,184,255,0.2)",
-            borderRadius: "var(--r-sm)",
-            padding: "0.25rem 0.65rem",
-            marginBottom: "1.25rem",
-          }}
-        >
-          <ShieldCheck size={11} color="var(--ice)" />
-          <span
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: "0.65rem",
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              color: "var(--ice)",
-            }}
-          >
-            invitation
-          </span>
-        </div>
-
-        <h2
-          style={{
-            fontFamily: "var(--font-display)",
-            fontSize: "1.85rem",
-            fontWeight: 800,
-            letterSpacing: "-0.03em",
-            color: "var(--text-bright)",
-            marginBottom: "0.5rem",
-            lineHeight: 1.15,
-          }}
-        >
-          Join {invite?.organization?.name || "the workspace"}.
-        </h2>
-        <p
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "0.82rem",
-            color: "var(--ghost)",
-          }}
-        >
+      <div style={{ marginBottom: "1.75rem" }}>
+        <h2 style={authTitle}>Join {invite?.organization?.name || "the workspace"}</h2>
+        <p style={authSubtitle}>
           You're joining as{" "}
-          <span style={{ color: "var(--signal)" }}>
-            {(invite?.role || "member").toUpperCase()}
+          <span style={{ color: "var(--signal)", fontWeight: 600, fontFamily: "var(--font-mono)", fontSize: "0.78rem", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+            {invite?.role || "member"}
           </span>
         </p>
       </div>
@@ -405,33 +342,10 @@ export default function AcceptInvitePage({ token, onNavigate }) {
         </button>
       </form>
 
-      <div
-        style={{
-          marginTop: "1.5rem",
-          paddingTop: "1.5rem",
-          borderTop: "1px solid var(--edge)",
-          textAlign: "center",
-          fontFamily: "var(--font-mono)",
-          fontSize: "0.8rem",
-          color: "var(--ghost)",
-        }}
-      >
-        already have an account?{" "}
-        <button
-          type="button"
-          onClick={() => onNavigate("login")}
-          className="link"
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontWeight: 500,
-            padding: 0,
-            fontFamily: "var(--font-mono)",
-            fontSize: "0.8rem",
-          }}
-        >
-          sign in →
+      <div style={authFoot}>
+        Already have an account?{" "}
+        <button type="button" onClick={() => onNavigate("login")} className="link" style={authFootLink}>
+          Sign in
         </button>
       </div>
     </div>

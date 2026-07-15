@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Eye, EyeOff, ArrowRight, Terminal } from "lucide-react";
+import { Eye, EyeOff, ArrowRight } from "lucide-react";
 import { useAuth } from "../../context/authcontext";
 import { InlineError, Spinner } from "../../components/ui/primitive.jsx";
 
@@ -34,55 +34,9 @@ export default function LoginPage({ onNavigate }) {
   return (
     <div className="animate-fade-up delay-0">
       {/* Header */}
-      <div style={{ marginBottom: "2.25rem" }}>
-        <div
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "0.5rem",
-            background: "var(--signal-dim)",
-            border: "1px solid rgba(0,229,160,0.2)",
-            borderRadius: "var(--r-sm)",
-            padding: "0.25rem 0.65rem",
-            marginBottom: "1.25rem",
-          }}
-        >
-          <Terminal size={11} color="var(--signal)" />
-          <span
-            style={{
-              fontFamily: "var(--font-mono)",
-              fontSize: "0.65rem",
-              letterSpacing: "0.1em",
-              textTransform: "uppercase",
-              color: "var(--signal)",
-            }}
-          >
-            operator access
-          </span>
-        </div>
-
-        <h2
-          style={{
-            fontFamily: "var(--font-display)",
-            fontSize: "2rem",
-            fontWeight: 800,
-            letterSpacing: "-0.03em",
-            color: "var(--text-bright)",
-            marginBottom: "0.5rem",
-            lineHeight: 1.1,
-          }}
-        >
-          Welcome back.
-        </h2>
-        <p
-          style={{
-            fontFamily: "var(--font-mono)",
-            fontSize: "0.82rem",
-            color: "var(--ghost)",
-          }}
-        >
-          Sign in to your workspace
-        </p>
+      <div style={{ marginBottom: "1.75rem" }}>
+        <h2 style={authTitle}>Welcome back</h2>
+        <p style={authSubtitle}>Sign in to your workspace</p>
       </div>
 
       {/* Form */}
@@ -235,36 +189,40 @@ export default function LoginPage({ onNavigate }) {
       </form>
 
       {/* Footer link */}
-      <div
-        className="animate-fade-up delay-300"
-        style={{
-          marginTop: "1.75rem",
-          paddingTop: "1.75rem",
-          borderTop: "1px solid var(--edge)",
-          textAlign: "center",
-          fontFamily: "var(--font-mono)",
-          fontSize: "0.8rem",
-          color: "var(--ghost)",
-        }}
-      >
-        no account?{" "}
-        <button
-          type="button"
-          onClick={() => onNavigate("register")}
-          className="link"
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            fontWeight: 500,
-            padding: 0,
-            fontFamily: "var(--font-mono)",
-            fontSize: "0.8rem",
-          }}
-        >
-          request access →
+      <div className="animate-fade-up delay-300" style={authFoot}>
+        No account?{" "}
+        <button type="button" onClick={() => onNavigate("register")} className="link" style={authFootLink}>
+          Create one
         </button>
       </div>
     </div>
   );
 }
+
+// Shared auth text styles
+export const authTitle = {
+  fontFamily: "var(--font-display)",
+  fontSize: "1.6rem",
+  fontWeight: 600,
+  letterSpacing: "-0.02em",
+  color: "var(--text)",
+  marginBottom: "0.4rem",
+  lineHeight: 1.15,
+};
+export const authSubtitle = { fontSize: "0.86rem", color: "var(--text-dim)" };
+export const authFoot = {
+  marginTop: "1.6rem",
+  paddingTop: "1.4rem",
+  borderTop: "1px solid var(--border)",
+  textAlign: "center",
+  fontSize: "0.83rem",
+  color: "var(--text-dim)",
+};
+export const authFootLink = {
+  background: "none",
+  border: "none",
+  cursor: "pointer",
+  fontWeight: 600,
+  padding: 0,
+  fontSize: "0.83rem",
+};

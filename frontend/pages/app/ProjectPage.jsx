@@ -10,35 +10,26 @@ import MembersPanel from "../../components/ui/MembersPanel.jsx";
 // ── role badges ───────────────────────────────────────────────────────────────
 // Project-level role (this user's role within THIS project). Greenish palette.
 const ROLE_CFG = {
-  admin: { label: "PROJECT ADMIN", color: "var(--phosphor)" },
-  project_admin: { label: "PROJECT PM", color: "var(--phosphor-dim, #4ea36a)" },
-  member: { label: "MEMBER", color: "var(--muted)" },
+  admin: { label: "Project admin", color: "var(--signal)", soft: "var(--signal-soft)" },
+  project_admin: { label: "Project PM", color: "var(--text-soft)", soft: "var(--surface-2)" },
+  member: { label: "Member", color: "var(--text-dim)", soft: "var(--surface-2)" },
 };
 
-// Org-level role (owner/admin) — distinct hue so it never reads the same as a
-// project role. Shown when the user manages the whole org.
+// Org-level role (owner/admin) — distinct from a project role.
 const ORG_ROLE_CFG = {
-  owner: { label: "ORG OWNER", color: "var(--amber, #f0a500)" },
-  admin: { label: "ORG ADMIN", color: "var(--ice, #4db8ff)" },
+  owner: { label: "Org owner", color: "var(--brass)", soft: "var(--brass-soft)" },
+  admin: { label: "Org admin", color: "var(--signal)", soft: "var(--signal-soft)" },
 };
 
 function RoleBadge({ role }) {
   const cfg = ROLE_CFG[role] || ROLE_CFG.member;
-  return (
-    <span style={{ ...PS.roleBadge, color: cfg.color, borderColor: cfg.color }}>
-      {cfg.label}
-    </span>
-  );
+  return <span style={{ ...PS.roleBadge, color: cfg.color, background: cfg.soft }}>{cfg.label}</span>;
 }
 
 function OrgRoleBadge({ role }) {
   const cfg = ORG_ROLE_CFG[role];
   if (!cfg) return null;
-  return (
-    <span style={{ ...PS.roleBadge, color: cfg.color, borderColor: cfg.color }}>
-      {cfg.label}
-    </span>
-  );
+  return <span style={{ ...PS.roleBadge, color: cfg.color, background: cfg.soft }}>{cfg.label}</span>;
 }
 
 function SkeletonCard() {
@@ -103,8 +94,7 @@ function ProjectStats({ project, tasks, members }) {
             transition={{ duration: 0.6, ease: "easeOut" }}
             style={{
               ...PS.completionFill,
-              background: pct === 100 ? "var(--phosphor)" : "var(--amber)",
-              boxShadow: pct === 100 ? "0 0 6px var(--phosphor)" : "none",
+              background: pct === 100 ? "var(--signal)" : "var(--brass)",
             }}
           />
         </div>
@@ -149,89 +139,40 @@ function NoteForm({ initial = null, onSave, onCancel, saving }) {
       transition={{ duration: 0.18 }}
       style={PS.noteForm}
     >
-      {/* corner brackets */}
-      <div
-        style={{
-          ...PS.corner,
-          top: -1,
-          left: -1,
-          borderTop: "2px solid var(--phosphor)",
-          borderLeft: "2px solid var(--phosphor)",
-        }}
-      />
-      <div
-        style={{
-          ...PS.corner,
-          top: -1,
-          right: -1,
-          borderTop: "2px solid var(--phosphor)",
-          borderRight: "2px solid var(--phosphor)",
-        }}
-      />
-      <div
-        style={{
-          ...PS.corner,
-          bottom: -1,
-          left: -1,
-          borderBottom: "2px solid var(--phosphor)",
-          borderLeft: "2px solid var(--phosphor)",
-        }}
-      />
-      <div
-        style={{
-          ...PS.corner,
-          bottom: -1,
-          right: -1,
-          borderBottom: "2px solid var(--phosphor)",
-          borderRight: "2px solid var(--phosphor)",
-        }}
-      />
-
       <div style={PS.noteFormHeader}>
-        <span style={PS.noteFormLabel}>
-          {initial ? "EDIT NOTE" : "NEW NOTE"}
-        </span>
+        <span style={PS.noteFormLabel}>{initial ? "Edit note" : "New note"}</span>
       </div>
 
       <input
         ref={titleRef}
         value={title}
         onChange={(e) => setTitle(e.target.value)}
-        placeholder="NOTE TITLE..."
-        style={PS.noteFormInput}
+        placeholder="Note title"
+        className="input-field"
         maxLength={150}
       />
       <textarea
         value={content}
         onChange={(e) => setContent(e.target.value)}
-        placeholder="NOTE CONTENT..."
+        placeholder="Write your note…"
         rows={5}
-        style={{ ...PS.noteFormInput, ...PS.noteFormTextarea }}
+        className="input-field textarea-field"
+        style={{ lineHeight: 1.7 }}
         maxLength={10000}
       />
       <div style={PS.noteFormFooter}>
         <span style={PS.noteFormCount}>{content.length}/10000</span>
         <div style={{ display: "flex", gap: 8 }}>
-          <button
-            onClick={onCancel}
-            style={PS.noteFormCancel}
-            disabled={saving}
-          >
-            ABORT
+          <button onClick={onCancel} className="btn btn-ghost" disabled={saving} style={{ fontSize: "0.8rem" }}>
+            Cancel
           </button>
           <button
-            onClick={() =>
-              canSubmit &&
-              onSave({ title: title.trim(), content: content.trim() })
-            }
-            style={{
-              ...PS.noteFormSave,
-              opacity: canSubmit && !saving ? 1 : 0.4,
-              cursor: canSubmit && !saving ? "pointer" : "not-allowed",
-            }}
+            onClick={() => canSubmit && onSave({ title: title.trim(), content: content.trim() })}
+            className="btn btn-primary"
+            style={{ fontSize: "0.8rem", opacity: canSubmit && !saving ? 1 : 0.4, cursor: canSubmit && !saving ? "pointer" : "not-allowed" }}
             disabled={!canSubmit || saving}
           >
-            {saving ? "◌ SAVING..." : initial ? "SAVE CHANGES" : "POST NOTE"}
+            {saving ? "Saving…" : initial ? "Save changes" : "Post note"}
           </button>
         </div>
       </div>
@@ -582,9 +523,9 @@ export default function ProjectPage({ project, onBack }) {
   const myOrgRole = isOrgOwner ? "owner" : isOrgAdmin ? "admin" : null;
 
   const TABS = [
-    { id: "tasks", label: "TASKS" },
-    { id: "members", label: "MEMBERS" },
-    { id: "notes", label: "NOTES" },
+    { id: "tasks", label: "Tasks" },
+    { id: "members", label: "Members" },
+    { id: "notes", label: "Notes" },
   ];
 
   return (
@@ -596,18 +537,13 @@ export default function ProjectPage({ project, onBack }) {
         transition={{ duration: 0.3 }}
         style={PS.pageHeader}
       >
-        <div style={PS.breadcrumb}>
-          <button onClick={onBack} style={PS.backBtn}>
-            ← PROJECTS
-          </button>
-          <span style={PS.breadSep}>/</span>
-          <span style={PS.breadCurrent}>{project.name}</span>
+        <button onClick={onBack} style={PS.backBtn}>← Projects</button>
+        <div style={PS.titleRow}>
+          <h1 style={PS.projTitle}>{project.name}</h1>
           {myOrgRole && <OrgRoleBadge role={myOrgRole} />}
           {myRole && <RoleBadge role={myRole} />}
         </div>
-        {project.description && (
-          <p style={PS.projDesc}>{project.description}</p>
-        )}
+        {project.description && <p style={PS.projDesc}>{project.description}</p>}
       </motion.div>
 
       {/* stats strip — driven by live task + member data */}
@@ -619,16 +555,10 @@ export default function ProjectPage({ project, onBack }) {
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id)}
-            style={{
-              ...PS.tabBtn,
-              color: activeTab === tab.id ? "var(--phosphor)" : "var(--muted)",
-              borderBottom:
-                activeTab === tab.id
-                  ? "2px solid var(--phosphor)"
-                  : "2px solid transparent",
-            }}
+            style={{ ...PS.tabBtn, color: activeTab === tab.id ? "var(--text)" : "var(--text-dim)" }}
           >
             {tab.label}
+            {activeTab === tab.id && <motion.div layoutId="project-tab-underline" style={PS.tabUnderline} />}
           </button>
         ))}
         <div style={PS.tabRest} />
@@ -654,402 +584,138 @@ export default function ProjectPage({ project, onBack }) {
 
 // ── styles ────────────────────────────────────────────────────────────────────
 const PS = {
-  page: {
-    display: "flex",
-    flexDirection: "column",
-    height: "100%",
-    minHeight: 0,
-  },
-  pageHeader: { marginBottom: 12 },
-  breadcrumb: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 6,
-  },
+  page: { display: "flex", flexDirection: "column", height: "100%", minHeight: 0 },
+  pageHeader: { marginBottom: 14 },
   backBtn: {
     background: "none",
     border: "none",
-    color: "var(--muted)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 9,
-    letterSpacing: 2,
+    color: "var(--text-dim)",
+    fontSize: "0.78rem",
     cursor: "pointer",
     padding: 0,
-    transition: "color 0.15s",
+    marginBottom: 6,
+    transition: "color 0.15s var(--ease)",
   },
-  breadSep: {
-    color: "var(--border)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 10,
-  },
-  breadCurrent: {
-    color: "var(--text)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 13,
-    letterSpacing: 3,
-    fontWeight: "bold",
-  },
-  projDesc: {
-    color: "var(--muted)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 10,
-    letterSpacing: 1,
-    margin: 0,
-  },
+  titleRow: { display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" },
+  projTitle: { fontFamily: "var(--font-display)", fontSize: "1.5rem", fontWeight: 600, letterSpacing: "-0.02em", color: "var(--text)", margin: 0 },
+  projDesc: { color: "var(--text-dim)", fontSize: "0.84rem", margin: "6px 0 0" },
 
-  // ── stats strip ──────────────────────────────────────────────────────────
+  // stats strip
   statsStrip: {
     display: "flex",
     alignItems: "center",
     gap: 0,
+    flexWrap: "wrap",
+    rowGap: 10,
     background: "var(--surface)",
     border: "1px solid var(--border)",
-    padding: "10px 16px",
+    borderRadius: "var(--r-lg)",
+    padding: "12px 18px",
     marginBottom: 16,
-    position: "relative",
-    overflow: "hidden",
+    boxShadow: "var(--shadow-sm)",
   },
-  statItem: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    flexShrink: 0,
-  },
-  statValue: {
-    fontFamily: "var(--font-display)",
-    fontSize: 20,
-    letterSpacing: 1,
-    lineHeight: 1,
-  },
-  statLabel: {
-    fontFamily: "var(--font-mono)",
-    fontSize: 7,
-    letterSpacing: 2,
-    color: "var(--muted)",
-    lineHeight: 1,
-  },
-  statDivider: {
-    width: 1,
-    height: 24,
-    background: "var(--border)",
-    margin: "0 16px",
-  },
-  completionWrap: {
-    display: "flex",
-    alignItems: "center",
-    gap: 10,
-    marginLeft: "auto",
-    flexShrink: 0,
-  },
-  completionTrack: {
-    width: 120,
-    height: 2,
-    background: "var(--border)",
-    overflow: "hidden",
-  },
-  completionFill: {
-    height: "100%",
-    transition: "width 0.3s ease",
-  },
-  completionPct: {
-    fontFamily: "var(--font-mono)",
-    fontSize: 9,
-    color: "var(--muted)",
-    letterSpacing: 1,
-    width: 28,
-    textAlign: "right",
-    flexShrink: 0,
-  },
+  statItem: { display: "flex", alignItems: "center", gap: 10, flexShrink: 0 },
+  statValue: { fontFamily: "var(--font-display)", fontSize: "1.35rem", fontWeight: 600, lineHeight: 1 },
+  statLabel: { fontFamily: "var(--font-mono)", fontSize: "0.6rem", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-dim)", lineHeight: 1 },
+  statDivider: { width: 1, height: 24, background: "var(--border)", margin: "0 18px" },
+  completionWrap: { display: "flex", alignItems: "center", gap: 10, marginLeft: "auto", flexShrink: 0 },
+  completionTrack: { width: 120, height: 3, background: "var(--border)", borderRadius: 2, overflow: "hidden" },
+  completionFill: { height: "100%", borderRadius: 2 },
+  completionPct: { fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--text-dim)", width: 32, textAlign: "right", flexShrink: 0 },
 
-  // ── tabs ─────────────────────────────────────────────────────────────────
-  tabBar: {
-    display: "flex",
-    borderBottom: "1px solid var(--border)",
-    flexShrink: 0,
-    marginBottom: 20,
-  },
+  // tabs
+  tabBar: { display: "flex", borderBottom: "1px solid var(--border)", flexShrink: 0, marginBottom: 20 },
   tabBtn: {
+    position: "relative",
     background: "none",
     border: "none",
-    borderBottom: "2px solid transparent",
-    fontFamily: "var(--font-mono)",
-    fontSize: 10,
-    letterSpacing: 2,
-    padding: "10px 20px",
+    fontFamily: "var(--font-sans)",
+    fontSize: "0.85rem",
+    fontWeight: 500,
+    padding: "10px 16px",
     cursor: "pointer",
-    transition: "color 0.15s, border-color 0.15s",
-    marginBottom: -1,
+    transition: "color 0.2s var(--ease)",
   },
+  tabUnderline: { position: "absolute", left: 8, right: 8, bottom: -1, height: 2, background: "var(--signal)", borderRadius: 2 },
   tabRest: { flex: 1 },
   contentArea: { flex: 1, minHeight: 0, overflow: "hidden" },
   tabContent: { height: "100%", overflowY: "auto" },
 
-  // ── notes toolbar ────────────────────────────────────────────────────────
-  notesToolbar: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 14,
-    paddingBottom: 10,
-    borderBottom: "1px solid var(--border)",
-  },
-  notesToolbarLabel: {
-    fontFamily: "var(--font-mono)",
-    fontSize: 9,
-    color: "var(--muted)",
-    letterSpacing: 2,
-  },
+  // notes toolbar
+  notesToolbar: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, paddingBottom: 10, borderBottom: "1px solid var(--border)" },
+  notesToolbarLabel: { fontFamily: "var(--font-mono)", fontSize: "0.66rem", letterSpacing: "0.08em", textTransform: "uppercase", color: "var(--text-dim)" },
   notesAddBtn: {
-    background: "rgba(0,255,65,0.07)",
-    border: "1px solid var(--phosphor)",
-    color: "var(--phosphor)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 9,
-    letterSpacing: 2,
-    padding: "6px 14px",
-    cursor: "pointer",
-    transition: "background 0.15s",
-  },
-
-  // ── note form ────────────────────────────────────────────────────────────
-  noteForm: {
-    background: "var(--surface)",
-    border: "1px solid var(--border)",
-    padding: "16px",
-    marginBottom: 14,
-    position: "relative",
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-  },
-  corner: {
-    position: "absolute",
-    width: 10,
-    height: 10,
-  },
-  noteFormHeader: {
-    marginBottom: 4,
-  },
-  noteFormLabel: {
-    fontFamily: "var(--font-mono)",
-    fontSize: 8,
-    letterSpacing: 3,
-    color: "var(--phosphor)",
-  },
-  noteFormInput: {
-    background: "var(--bg)",
-    border: "1px solid var(--border)",
-    color: "var(--text)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 11,
-    letterSpacing: 0.5,
-    padding: "9px 12px",
-    outline: "none",
-    width: "100%",
-    boxSizing: "border-box",
-    transition: "border-color 0.15s",
-  },
-  noteFormTextarea: {
-    resize: "vertical",
-    minHeight: 100,
-    lineHeight: 1.7,
-  },
-  noteFormFooter: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-  },
-  noteFormCount: {
-    fontFamily: "var(--font-mono)",
-    fontSize: 8,
-    color: "var(--muted)",
-    letterSpacing: 1,
-  },
-  noteFormCancel: {
-    background: "none",
-    border: "1px solid var(--border)",
-    color: "var(--muted)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 9,
-    letterSpacing: 2,
+    background: "var(--signal)",
+    border: "none",
+    color: "var(--signal-ink)",
+    fontFamily: "var(--font-sans)",
+    fontSize: "0.78rem",
+    fontWeight: 600,
+    borderRadius: "var(--r-md)",
     padding: "7px 14px",
     cursor: "pointer",
   },
-  noteFormSave: {
-    background: "rgba(0,255,65,0.08)",
-    border: "1px solid var(--phosphor)",
-    color: "var(--phosphor)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 9,
-    letterSpacing: 2,
-    padding: "7px 16px",
-    transition: "background 0.15s",
-  },
 
-  // ── notes list ───────────────────────────────────────────────────────────
-  notesList: {
-    display: "flex",
-    flexDirection: "column",
-    gap: 6,
-    padding: "4px 0",
-  },
-  noteCard: {
+  // note form
+  noteForm: {
     background: "var(--surface)",
     border: "1px solid var(--border)",
-    overflow: "hidden",
-    transition: "border-color 0.15s",
-  },
-  noteHeader: {
-    display: "flex",
-    alignItems: "center",
-    gap: 0,
-  },
-  noteHeaderBtn: {
-    flex: 1,
-    background: "none",
-    border: "none",
-    display: "flex",
-    alignItems: "center",
-    gap: 12,
-    padding: "13px 16px",
-    cursor: "pointer",
-    fontFamily: "var(--font-mono)",
-    textAlign: "left",
-    minWidth: 0,
-  },
-  noteChevron: { color: "var(--phosphor)", fontSize: 8, flexShrink: 0 },
-  noteTitle: {
-    color: "var(--text)",
-    fontSize: 11,
-    letterSpacing: 1,
-    fontWeight: "bold",
-    flex: 1,
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    whiteSpace: "nowrap",
-    minWidth: 0,
-  },
-  noteEdited: {
-    color: "var(--amber)",
-    fontSize: 7,
-    letterSpacing: 1.5,
-    border: "1px solid var(--amber)",
-    borderRadius: 2,
-    padding: "1px 4px",
-    flexShrink: 0,
-  },
-  noteAuthor: {
-    color: "var(--phosphor-dim)",
-    fontSize: 8,
-    letterSpacing: 2,
-    flexShrink: 0,
-  },
-  noteDate: {
-    color: "var(--muted)",
-    fontSize: 8,
-    letterSpacing: 1,
-    flexShrink: 0,
-  },
-  noteActions: {
-    display: "flex",
-    alignItems: "center",
-    gap: 2,
-    paddingRight: 10,
-    flexShrink: 0,
-  },
-  noteActionBtn: {
-    background: "none",
-    border: "none",
-    color: "var(--muted)",
-    cursor: "pointer",
-    fontSize: 11,
-    padding: "4px 7px",
-    fontFamily: "var(--font-mono)",
-    transition: "color 0.15s",
-    lineHeight: 1,
-  },
-  noteBody: {
-    padding: "12px 16px 16px 36px",
-    color: "var(--muted)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 10,
-    lineHeight: 1.7,
-    letterSpacing: 0.5,
-    borderTop: "1px solid var(--border)",
-    whiteSpace: "pre-wrap",
-  },
-
-  // ── empty / error ────────────────────────────────────────────────────────
-  emptyState: {
+    borderRadius: "var(--r-lg)",
+    padding: "16px",
+    marginBottom: 14,
     display: "flex",
     flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
     gap: 10,
-    padding: "48px 20px",
-    color: "var(--muted)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 9,
-    letterSpacing: 2,
   },
-  emptyIcon: { fontSize: 28, opacity: 0.3 },
+  noteFormHeader: { marginBottom: 2 },
+  noteFormLabel: { fontFamily: "var(--font-mono)", fontSize: "0.64rem", letterSpacing: "0.09em", textTransform: "uppercase", color: "var(--text-dim)" },
+  noteFormFooter: { display: "flex", alignItems: "center", justifyContent: "space-between" },
+  noteFormCount: { fontFamily: "var(--font-mono)", fontSize: "0.64rem", color: "var(--text-dim)" },
+
+  // notes list
+  notesList: { display: "flex", flexDirection: "column", gap: 6, padding: "4px 0" },
+  noteCard: { background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", overflow: "hidden", transition: "border-color 0.2s var(--ease)" },
+  noteHeader: { display: "flex", alignItems: "center", gap: 0 },
+  noteHeaderBtn: { flex: 1, background: "none", border: "none", display: "flex", alignItems: "center", gap: 12, padding: "13px 16px", cursor: "pointer", textAlign: "left", minWidth: 0 },
+  noteChevron: { color: "var(--text-dim)", fontSize: "0.6rem", flexShrink: 0 },
+  noteTitle: { color: "var(--text)", fontSize: "0.88rem", fontWeight: 600, flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", minWidth: 0 },
+  noteEdited: { color: "var(--brass)", fontFamily: "var(--font-mono)", fontSize: "0.58rem", textTransform: "uppercase", letterSpacing: "0.05em", background: "var(--brass-soft)", borderRadius: "var(--r-sm)", padding: "1px 5px", flexShrink: 0 },
+  noteAuthor: { color: "var(--text-dim)", fontFamily: "var(--font-mono)", fontSize: "0.64rem", flexShrink: 0 },
+  noteDate: { color: "var(--muted)", fontFamily: "var(--font-mono)", fontSize: "0.62rem", flexShrink: 0 },
+  noteActions: { display: "flex", alignItems: "center", gap: 2, paddingRight: 10, flexShrink: 0 },
+  noteActionBtn: { background: "none", border: "none", color: "var(--text-dim)", cursor: "pointer", fontSize: "0.86rem", padding: "4px 7px", lineHeight: 1 },
+  noteBody: { padding: "12px 16px 16px 36px", color: "var(--text-soft)", fontSize: "0.83rem", lineHeight: 1.7, borderTop: "1px solid var(--border)", whiteSpace: "pre-wrap" },
+
+  // empty / error
+  emptyState: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 10, padding: "48px 20px", color: "var(--text-dim)", fontSize: "0.84rem" },
+  emptyIcon: { fontSize: 26, opacity: 0.4 },
   emptyAddBtn: {
-    background: "rgba(0,255,65,0.07)",
-    border: "1px solid var(--phosphor)",
-    color: "var(--phosphor)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 9,
-    letterSpacing: 2,
+    background: "var(--signal)",
+    border: "none",
+    color: "var(--signal-ink)",
+    fontFamily: "var(--font-sans)",
+    fontSize: "0.8rem",
+    fontWeight: 600,
+    borderRadius: "var(--r-md)",
     padding: "8px 16px",
     cursor: "pointer",
     marginTop: 6,
   },
-  errorState: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 12,
-    padding: "48px 20px",
-    fontFamily: "var(--font-mono)",
-  },
-  errorIcon: { color: "var(--red)", fontSize: 24 },
-  errorMsg: { color: "var(--muted)", fontSize: 10, letterSpacing: 1 },
-  retryBtn: {
-    background: "none",
-    border: "1px solid var(--border)",
-    color: "var(--muted)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 9,
-    letterSpacing: 2,
-    padding: "6px 14px",
-    cursor: "pointer",
-    transition: "border-color 0.15s, color 0.15s",
-  },
+  errorState: { display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 12, padding: "48px 20px" },
+  errorIcon: { color: "var(--danger)", fontSize: 22 },
+  errorMsg: { color: "var(--text-dim)", fontSize: "0.84rem" },
+  retryBtn: { background: "none", border: "1px solid var(--border)", color: "var(--text-soft)", fontFamily: "var(--font-sans)", fontSize: "0.8rem", borderRadius: "var(--r-md)", padding: "7px 14px", cursor: "pointer" },
 
-  // ── skeleton ────────────────────────────────────────────────────────────
-  skeletonCard: {
-    background: "var(--surface)",
-    border: "1px solid var(--border)",
-    borderRadius: "var(--r-lg)",
-    padding: 16,
-  },
+  // skeleton
+  skeletonCard: { background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-lg)", padding: 16 },
   skeletonLine: {
     height: 10,
-    background:
-      "linear-gradient(90deg, var(--surface) 25%, var(--border) 50%, var(--surface) 75%)",
+    background: "linear-gradient(90deg, var(--surface) 25%, var(--surface-2) 50%, var(--surface) 75%)",
     backgroundSize: "200% auto",
     animation: "shimmer 1.5s linear infinite",
     borderRadius: 2,
   },
 
-  // ── role badge ───────────────────────────────────────────────────────────
-  roleBadge: {
-    fontFamily: "var(--font-mono)",
-    fontSize: 7,
-    letterSpacing: 2,
-    border: "1px solid",
-    padding: "2px 6px",
-  },
+  // role badge (soft chip)
+  roleBadge: { fontFamily: "var(--font-mono)", fontSize: "0.6rem", textTransform: "uppercase", letterSpacing: "0.05em", borderRadius: "var(--r-sm)", padding: "3px 8px", whiteSpace: "nowrap" },
 };

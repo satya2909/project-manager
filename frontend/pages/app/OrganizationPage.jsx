@@ -8,9 +8,9 @@ import OrgMembersPanel from "../../components/ui/OrgMembersPanel.jsx";
 import { InlineError, InlineSuccess, Spinner } from "../../components/ui/primitive.jsx";
 
 const TABS = [
-  { id: "settings", label: "SETTINGS", icon: Building2 },
-  { id: "members", label: "MEMBERS", icon: Users },
-  { id: "invites", label: "INVITES", icon: Mail },
+  { id: "settings", label: "Settings", icon: Building2 },
+  { id: "members", label: "Members", icon: Users },
+  { id: "invites", label: "Invites", icon: Mail },
 ];
 
 // ─── SETTINGS TAB ─────────────────────────────────────────────────────────────
@@ -103,14 +103,14 @@ function SettingsTab({ org, onOrgUpdated }) {
       {/* Danger zone — owner only */}
       {isOrgOwner && (
         <>
-          <div style={{ ...S.sectionLabel, color: "var(--red, #e05050)", marginTop: 34 }}>
+          <div style={{ ...S.sectionLabel, color: "var(--danger)", marginTop: 34 }}>
             <span>DANGER ZONE</span>
-            <div style={{ ...S.rule, background: "rgba(224,80,80,0.3)" }} />
+            <div style={{ ...S.rule, background: "color-mix(in srgb, var(--danger) 30%, transparent)" }} />
           </div>
           <div style={S.dangerCard}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
-              <Trash2 size={13} color="var(--red, #e05050)" />
-              <span style={{ color: "var(--red, #e05050)", fontSize: 11, letterSpacing: "0.08em", fontWeight: 700 }}>
+              <Trash2 size={13} color="var(--danger)" />
+              <span style={{ color: "var(--danger)", fontSize: 11, letterSpacing: "0.08em", fontWeight: 700 }}>
                 DELETE ORGANIZATION
               </span>
             </div>
@@ -331,9 +331,9 @@ function InvitesTab() {
           <div style={{ display: "flex", gap: 16, flexWrap: "wrap", marginBottom: 10 }}>
             <span style={S.statChip}><b style={{ color: "var(--phosphor)" }}>{bulkResult.summary.sent}</b> SENT</span>
             <span style={S.statChip}><b>{bulkResult.summary.skipped}</b> SKIPPED</span>
-            <span style={S.statChip}><b style={{ color: "var(--red, #e05050)" }}>{bulkResult.summary.failed}</b> FAILED</span>
+            <span style={S.statChip}><b style={{ color: "var(--danger)" }}>{bulkResult.summary.failed}</b> FAILED</span>
             {bulkResult.summary.failedEmail > 0 && (
-              <span style={S.statChip}><b style={{ color: "var(--red, #e05050)" }}>{bulkResult.summary.failedEmail}</b> EMAIL FAILED</span>
+              <span style={S.statChip}><b style={{ color: "var(--danger)" }}>{bulkResult.summary.failedEmail}</b> EMAIL FAILED</span>
             )}
           </div>
           {[
@@ -362,7 +362,7 @@ function InvitesTab() {
                       <tr key={`${r.kind}-${r.rowNumber}-${i}`}>
                         <td style={S.td}>{r.rowNumber}</td>
                         <td style={S.td}>{r.email || "—"}</td>
-                        <td style={{ ...S.td, color: r.kind === "SKIPPED" ? "var(--muted)" : "var(--red, #e05050)" }}>{r.kind}</td>
+                        <td style={{ ...S.td, color: r.kind === "SKIPPED" ? "var(--muted)" : "var(--danger)" }}>{r.kind}</td>
                         <td style={S.td}>{r.reason}</td>
                       </tr>
                     ))}
@@ -380,7 +380,7 @@ function InvitesTab() {
       </div>
 
       {loading && <div style={S.center}><Spinner size="sm" /></div>}
-      {error && <div style={S.center}><span style={{ color: "var(--red, #e05050)", fontFamily: "var(--font-mono)", fontSize: 10 }}>✗ {error}</span></div>}
+      {error && <div style={S.center}><span style={{ color: "var(--danger)", fontFamily: "var(--font-mono)", fontSize: 10 }}>✗ {error}</span></div>}
 
       {!loading && !error && invites.length === 0 && (
         <div style={S.empty}><span style={{ fontSize: 24, opacity: 0.3 }}>◈</span><span>NO PENDING INVITES</span></div>
@@ -437,10 +437,7 @@ export default function OrganizationPage() {
     <div style={{ height: "100%", display: "flex", flexDirection: "column" }}>
       {/* Header */}
       <div style={{ marginBottom: 18 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <Building2 size={18} color="var(--phosphor)" />
-          <h1 style={S.pageTitle}>{org?.name?.toUpperCase() || "ORGANIZATION"}</h1>
-        </div>
+        <h1 style={S.pageTitle}>{org?.name || "Organization"}</h1>
         <span style={S.pageSub}>Manage your workspace, members, and invitations</span>
       </div>
 
@@ -452,10 +449,11 @@ export default function OrganizationPage() {
             <button
               key={t.id}
               onClick={() => setTab(t.id)}
-              style={{ ...S.tab, ...(active ? S.tabActive : {}) }}
+              style={{ ...S.tab, color: active ? "var(--text)" : "var(--text-dim)" }}
             >
-              <t.icon size={13} />
+              <t.icon size={14} />
               {t.label}
+              {active && <motion.div layoutId="org-tab-underline" style={S.tabUnderline} />}
             </button>
           );
         })}
@@ -491,17 +489,13 @@ export default function OrganizationPage() {
 const S = {
   pageTitle: {
     fontFamily: "var(--font-display)",
-    fontSize: 22,
-    letterSpacing: "0.04em",
-    color: "var(--text-bright, var(--text))",
+    fontSize: "1.7rem",
+    fontWeight: 600,
+    letterSpacing: "-0.02em",
+    color: "var(--text)",
     margin: 0,
   },
-  pageSub: {
-    fontFamily: "var(--font-mono)",
-    fontSize: 10,
-    color: "var(--ghost)",
-    letterSpacing: "0.04em",
-  },
+  pageSub: { fontSize: "0.86rem", color: "var(--text-dim)", marginTop: 4, display: "block" },
   tabBar: {
     display: "flex",
     gap: 4,
@@ -509,78 +503,85 @@ const S = {
     marginBottom: 8,
   },
   tab: {
+    position: "relative",
     display: "flex",
     alignItems: "center",
     gap: 7,
     background: "none",
     border: "none",
-    borderBottom: "2px solid transparent",
-    color: "var(--muted)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 10,
-    letterSpacing: "0.12em",
+    color: "var(--text-dim)",
+    fontFamily: "var(--font-sans)",
+    fontSize: "0.85rem",
+    fontWeight: 500,
     padding: "10px 14px",
     cursor: "pointer",
-    marginBottom: -1,
+    transition: "color .2s var(--ease)",
   },
-  tabActive: {
-    color: "var(--phosphor)",
-    borderBottomColor: "var(--phosphor)",
+  tabUnderline: {
+    position: "absolute",
+    left: 8,
+    right: 8,
+    bottom: -1,
+    height: 2,
+    background: "var(--signal)",
+    borderRadius: 2,
   },
   sectionLabel: {
     display: "flex",
     alignItems: "center",
     gap: 12,
     fontFamily: "var(--font-mono)",
-    fontSize: 9,
-    letterSpacing: "0.16em",
-    color: "var(--muted)",
+    fontSize: "0.66rem",
+    letterSpacing: "0.1em",
+    textTransform: "uppercase",
+    color: "var(--text-dim)",
     marginBottom: 14,
   },
   rule: { flex: 1, height: 1, background: "var(--border)" },
-  fieldLabel: { fontFamily: "var(--font-mono)", fontSize: 8, letterSpacing: "0.14em", color: "var(--muted)" },
+  fieldLabel: { fontFamily: "var(--font-mono)", fontSize: "0.64rem", letterSpacing: "0.09em", textTransform: "uppercase", color: "var(--text-dim)" },
   input: {
-    fontFamily: "var(--font-mono)",
-    fontSize: 11,
-    background: "var(--surface)",
+    fontFamily: "var(--font-sans)",
+    fontSize: "0.86rem",
+    background: "var(--surface-2)",
     color: "var(--text)",
     border: "1px solid var(--border)",
+    borderRadius: "var(--r-md)",
     padding: "9px 12px",
     outline: "none",
     width: "100%",
-    letterSpacing: "0.04em",
   },
   select: {
-    fontFamily: "var(--font-mono)",
-    fontSize: 11,
-    background: "var(--surface)",
+    fontFamily: "var(--font-sans)",
+    fontSize: "0.86rem",
+    background: "var(--surface-2)",
     color: "var(--text)",
     border: "1px solid var(--border)",
+    borderRadius: "var(--r-md)",
     padding: "9px 12px",
     outline: "none",
     cursor: "pointer",
   },
   btnPrimary: {
-    fontFamily: "var(--font-mono)",
-    fontSize: 9,
-    letterSpacing: "0.14em",
-    background: "var(--phosphor)",
-    color: "var(--bg, #0a0a0a)",
-    border: "1px solid var(--phosphor)",
-    padding: "9px 18px",
-    cursor: "pointer",
+    fontFamily: "var(--font-sans)",
+    fontSize: "0.82rem",
     fontWeight: 600,
+    background: "var(--signal)",
+    color: "var(--signal-ink)",
+    border: "none",
+    borderRadius: "var(--r-md)",
+    padding: "9px 16px",
+    cursor: "pointer",
     whiteSpace: "nowrap",
   },
   btnDanger: {
-    fontFamily: "var(--font-mono)",
-    fontSize: 9,
-    letterSpacing: "0.14em",
-    background: "var(--red, #e05050)",
-    color: "var(--bg, #0a0a0a)",
-    border: "1px solid var(--red, #e05050)",
-    padding: "9px 18px",
+    fontFamily: "var(--font-sans)",
+    fontSize: "0.82rem",
     fontWeight: 600,
+    background: "var(--danger)",
+    color: "#fff",
+    border: "none",
+    borderRadius: "var(--r-md)",
+    padding: "9px 16px",
     whiteSpace: "nowrap",
   },
   placeholderCard: {
@@ -589,96 +590,82 @@ const S = {
     gap: 6,
     padding: "16px 18px",
     border: "1px solid var(--border)",
+    borderRadius: "var(--r-lg)",
     background: "var(--surface)",
-    fontFamily: "var(--font-mono)",
   },
   dangerCard: {
     padding: "16px 18px",
-    border: "1px solid rgba(224,80,80,0.3)",
-    background: "rgba(224,80,80,0.04)",
+    border: "1px solid color-mix(in srgb, var(--danger) 30%, transparent)",
+    borderRadius: "var(--r-lg)",
+    background: "var(--danger-soft)",
   },
-  dangerText: {
-    fontFamily: "var(--font-mono)",
-    fontSize: 10,
-    color: "var(--muted)",
-    lineHeight: 1.7,
-    margin: 0,
-  },
+  dangerText: { fontSize: "0.82rem", color: "var(--text-soft)", lineHeight: 1.7, margin: 0 },
   inviteRow: {
     display: "flex",
     alignItems: "center",
     gap: 12,
-    padding: "10px 0",
+    padding: "11px 0",
     borderBottom: "1px solid var(--border)",
   },
   memberName: {
-    fontFamily: "var(--font-mono)",
-    fontSize: 11,
-    letterSpacing: "0.06em",
+    fontSize: "0.86rem",
     color: "var(--text)",
-    fontWeight: "bold",
+    fontWeight: 500,
     whiteSpace: "nowrap",
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
-  memberEmail: {
-    fontFamily: "var(--font-mono)",
-    fontSize: 9,
-    color: "var(--muted)",
-    letterSpacing: "0.04em",
-  },
+  memberEmail: { fontSize: "0.75rem", color: "var(--text-dim)" },
   btnRemove: {
-    fontFamily: "var(--font-mono)",
-    fontSize: 8,
-    letterSpacing: "0.14em",
+    fontFamily: "var(--font-sans)",
+    fontSize: "0.75rem",
+    fontWeight: 500,
     background: "transparent",
-    color: "var(--muted)",
-    border: "1px solid var(--border)",
+    color: "var(--danger)",
+    border: "1px solid color-mix(in srgb, var(--danger) 30%, transparent)",
+    borderRadius: "var(--r-sm)",
     padding: "5px 12px",
     cursor: "pointer",
     whiteSpace: "nowrap",
   },
   btnGhost: {
-    fontFamily: "var(--font-mono)",
-    fontSize: 9,
-    letterSpacing: "0.14em",
+    fontFamily: "var(--font-sans)",
+    fontSize: "0.82rem",
+    fontWeight: 500,
     background: "transparent",
-    color: "var(--text)",
+    color: "var(--text-soft)",
     border: "1px solid var(--border)",
-    padding: "9px 16px",
+    borderRadius: "var(--r-md)",
+    padding: "9px 14px",
     cursor: "pointer",
     whiteSpace: "nowrap",
     maxWidth: 240,
     overflow: "hidden",
     textOverflow: "ellipsis",
   },
-  statChip: {
-    fontFamily: "var(--font-mono)",
-    fontSize: 10,
-    letterSpacing: "0.1em",
-    color: "var(--muted)",
-  },
+  statChip: { fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--text-dim)" },
   table: {
     width: "100%",
     borderCollapse: "collapse",
-    fontFamily: "var(--font-mono)",
-    fontSize: 10,
+    fontFamily: "var(--font-sans)",
+    fontSize: "0.78rem",
     minWidth: 480,
   },
   th: {
     textAlign: "left",
-    padding: "6px 10px",
-    color: "var(--muted)",
-    fontSize: 8,
-    letterSpacing: "0.14em",
+    padding: "7px 10px",
+    color: "var(--text-dim)",
+    fontFamily: "var(--font-mono)",
+    fontSize: "0.62rem",
+    letterSpacing: "0.08em",
+    textTransform: "uppercase",
     borderBottom: "1px solid var(--border)",
     whiteSpace: "nowrap",
   },
   td: {
-    padding: "6px 10px",
+    padding: "7px 10px",
     color: "var(--text)",
     borderBottom: "1px solid var(--border)",
-    letterSpacing: "0.03em",
     verticalAlign: "top",
   },
   center: { display: "flex", flexDirection: "column", alignItems: "center", gap: 10, padding: "32px 0" },
@@ -688,9 +675,7 @@ const S = {
     alignItems: "center",
     gap: 10,
     padding: "40px 20px",
-    color: "var(--muted)",
-    fontFamily: "var(--font-mono)",
-    fontSize: 9,
-    letterSpacing: "0.2em",
+    color: "var(--text-dim)",
+    fontSize: "0.83rem",
   },
 };
