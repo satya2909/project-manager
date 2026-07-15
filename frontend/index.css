@@ -434,10 +434,33 @@ button { font-family: inherit; }
 .badge-admin        { background: var(--brass-soft);  color: var(--brass); }
 .badge-project-admin{ background: var(--brass-soft);  color: var(--brass); }
 .badge-member       { background: var(--signal-soft); color: var(--signal); }
+/* Due-date badges (timeline feature) — icon carries the meaning alongside
+   color so overdue/due-soon are distinguishable for colorblind viewers,
+   not color-only. */
+.badge-overdue      { background: var(--danger-soft); color: var(--danger); }
+.badge-due-soon     { background: var(--brass-soft);  color: var(--brass); }
 
 .status-bar-todo     { border-left: 3px solid var(--status-todo); }
 .status-bar-progress { border-left: 3px solid var(--status-progress); }
 .status-bar-done     { border-left: 3px solid var(--status-done); }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   TIMELINE — dependency lines (circuit-trace elbow connectors, not soft
+   curves — the one deliberate on-brand divergence from the Notion reference)
+   ═══════════════════════════════════════════════════════════════════════════ */
+.timeline-dependency-path {
+  stroke: var(--border-hi);
+  stroke-width: 1.5;
+  /* Parent <svg> is pointer-events:none (so it never blocks the bars
+     underneath) — re-enable hover on the stroke itself only, not the
+     transparent fill area between elbow segments. */
+  pointer-events: stroke;
+  transition: stroke 0.2s var(--ease), filter 0.2s var(--ease);
+}
+.timeline-dependency-path:hover {
+  stroke: var(--brass);
+  filter: drop-shadow(0 0 3px var(--brass-soft));
+}
 
 /* ═══════════════════════════════════════════════════════════════════════════
    CARDS

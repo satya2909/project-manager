@@ -6,6 +6,7 @@ import {
   activityApi,
   parseApiError,
 } from "../api";
+import { tempId } from "../utils/index.js";
 
 
 
@@ -253,6 +254,170 @@ export function useTasks(projectId) {
     updateTask,
     deleteTask,
     setTasks,
+  };
+}
+
+// ─── useTimeline ────────────────────────────────────────────────────────────
+// Fetches GET /tasks/:projectId/timeline. Separate from useTasks() — the
+// timeline payload is lighter (no attachments/subtasks) and the collapsible
+// TimelineSection only needs to fetch once it's expanded. rescheduleTask()
+// is Phase 4's drag-to-reschedule/resize mutation; updateDependencies() is
+// Phase 5's dependency-link mutation — both share the same optimistic-update
+// + rollback pattern as useTasks().updateTask.
+export function useTimeline(projectId, { enabled = true } = {}) {
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [hasFetched, setHasFetched] = useState(false);
+  const pendingUpdates = useRef(new Map());
+
+  const fetch = useCallback(async () => {
+    if (!projectId) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = await tasksApi.listTimeline(projectId);
+      setTasks(data?.data?.tasks ?? []);
+      setHasFetched(true);
+    } catch (err) {
+      setError(parseApiError(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    if (enabled && !hasFetched) {
+      fetch();
+    }
+  }, [enabled, hasFetched, fetch]);
+
+  const rescheduleTask = async (taskId, payload) => {
+    const updateKey = `${taskId}_${Date.now()}`;
+    pendingUpdates.current.set(taskId, updateKey);
+
+    // Capture `previous` INSIDE the functional updater, not via a direct
+    // `tasks.find(...)` read beforehand — the direct read closes over
+    // whatever `tasks` was at render time, which is stale if a second
+    // mutation on the same task fires before the first one resolves (e.g.
+    // two quick drags). The functional form always sees the latest pending
+    // state, so rollback restores the right snapshot either way.
+    let previous;
+    setTasks((prev) => {
+      previous = prev.find((t) => t._id === taskId);
+      return prev.map((t) => (t._id === taskId ? { ...t, ...payload } : t));
+    });
+
+    try {
+      const { data } = await tasksApi.updateSchedule(projectId, taskId, payload);
+      const serverTask = data?.data?.task;
+      if (pendingUpdates.current.get(taskId) === updateKey) {
+        setTasks((prev) =>
+          prev.map((t) => (t._id === taskId ? { ...t, ...serverTask } : t)),
+        );
+      }
+      return { success: true };
+    } catch (err) {
+      // Roll back to the pre-drag dates rather than a full refetch — keeps
+      // the rest of the board (including other tasks' optimistic state)
+      // untouched, matches the "toast + snap-back" pattern from the plan.
+      // Gated by the SAME pendingUpdates check as the success branch above —
+      // without it, a late-failing call whose pending-key was already
+      // overwritten by a newer mutation on the same task would stomp that
+      // newer mutation's already-committed state with this stale snapshot.
+      if (previous && pendingUpdates.current.get(taskId) === updateKey) {
+        setTasks((prev) =>
+          prev.map((t) => (t._id === taskId ? previous : t)),
+        );
+      }
+      return { success: false, error: parseApiError(err) };
+    } finally {
+      if (pendingUpdates.current.get(taskId) === updateKey) {
+        pendingUpdates.current.delete(taskId);
+      }
+    }
+  };
+
+  // dependsOnIds: full desired array of task-id strings (replace semantics,
+  // matches PATCH /dependencies). Optimistic entries use a best-effort
+  // {_id, title} shape (title looked up from already-loaded `tasks`) so
+  // dependency-line rendering doesn't flash broken between the optimistic
+  // update and the server's populated response.
+  const updateDependencies = async (taskId, dependsOnIds) => {
+    const updateKey = `${taskId}_${Date.now()}`;
+    pendingUpdates.current.set(taskId, updateKey);
+
+    // Same functional-capture fix as rescheduleTask — see its comment.
+    const titleById = new Map(tasks.map((t) => [t._id, t.title]));
+    const optimisticDependsOn = dependsOnIds.map((id) => ({
+      _id: id,
+      title: titleById.get(id) ?? "",
+    }));
+    let previous;
+    setTasks((prev) => {
+      previous = prev.find((t) => t._id === taskId);
+      return prev.map((t) => (t._id === taskId ? { ...t, dependsOn: optimisticDependsOn } : t));
+    });
+
+    try {
+      const { data } = await tasksApi.updateDependencies(projectId, taskId, {
+        dependsOn: dependsOnIds,
+      });
+      const serverTask = data?.data?.task;
+      if (pendingUpdates.current.get(taskId) === updateKey) {
+        setTasks((prev) =>
+          prev.map((t) => (t._id === taskId ? { ...t, ...serverTask } : t)),
+        );
+      }
+      return { success: true };
+    } catch (err) {
+      // Snap back to the pre-drag dependency list — same "toast + snap-back"
+      // pattern as rescheduleTask, most relevant here for a 409 cycle
+      // rejection (the ApiError message is already specific: "This would
+      // create a circular dependency"). Gated the same way as
+      // rescheduleTask's rollback — see its comment.
+      if (previous && pendingUpdates.current.get(taskId) === updateKey) {
+        setTasks((prev) => prev.map((t) => (t._id === taskId ? previous : t)));
+      }
+      return { success: false, error: parseApiError(err) };
+    } finally {
+      if (pendingUpdates.current.get(taskId) === updateKey) {
+        pendingUpdates.current.delete(taskId);
+      }
+    }
+  };
+
+  // Phase 6 (inline creation on the grid). Reuses the general
+  // `POST /tasks/:projectId` endpoint (now date-aware) — there's no
+  // timeline-specific create route. Optimistic: a temp-id placeholder
+  // appears immediately, replaced by the server task on success or removed
+  // on failure (same tempId() pattern as elsewhere in this codebase).
+  const createTask = async (payload) => {
+    const placeholderId = tempId();
+    const placeholder = { _id: placeholderId, dependsOn: [], ...payload };
+    setTasks((prev) => [...prev, placeholder]);
+
+    try {
+      const { data } = await tasksApi.create(projectId, payload);
+      const serverTask = data?.data?.task;
+      setTasks((prev) =>
+        prev.map((t) => (t._id === placeholderId ? { ...serverTask, dependsOn: [] } : t)),
+      );
+      return { success: true, data: serverTask };
+    } catch (err) {
+      setTasks((prev) => prev.filter((t) => t._id !== placeholderId));
+      return { success: false, error: parseApiError(err) };
+    }
+  };
+
+  return {
+    tasks,
+    loading,
+    error,
+    refetch: fetch,
+    rescheduleTask,
+    updateDependencies,
+    createTask,
   };
 }
 

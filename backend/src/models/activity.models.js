@@ -28,6 +28,9 @@ const activitySchema = new Schema(
         "created_task",
         "updated_task",
         "moved_task", // status change specifically
+        "rescheduled_task", // startDate/dueDate change
+        "linked_dependency",
+        "unlinked_dependency",
         "deleted_task",
         "created_subtask",
         "completed_subtask",

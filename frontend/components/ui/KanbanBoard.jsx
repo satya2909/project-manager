@@ -26,6 +26,11 @@ const COLUMNS = [
   { id: "done", label: "Done", dot: "var(--signal)" },
 ];
 
+// Columns cap at this many visible cards before "Show N more" appears — the
+// board grows to its natural height (page scrolls) instead of each column
+// scrolling internally in a fixed-height slot.
+const MAX_VISIBLE_CARDS = 6;
+
 // ─── group helper ───────────────────────────────────────────────────────────────
 function groupByStatus(tasks = []) {
   const grouped = { todo: [], in_progress: [], done: [] };
@@ -59,6 +64,14 @@ function RollingCount({ count }) {
 function DroppableColumn({ column, tasks, onTaskClick, onToggleComplete }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
   const taskIds = tasks.map((t) => t._id);
+  const [expanded, setExpanded] = useState(false);
+
+  // All cards stay mounted in the SortableContext at all times — drag/drop
+  // still works below the visible fold, only the CSS height is capped.
+  // Slicing the rendered list would desync it from `taskIds` and break
+  // dnd-kit's index math.
+  const hiddenCount = !expanded ? Math.max(0, tasks.length - MAX_VISIBLE_CARDS) : 0;
+  const isCapped = hiddenCount > 0;
 
   return (
     <div
@@ -74,32 +87,46 @@ function DroppableColumn({ column, tasks, onTaskClick, onToggleComplete }) {
         <RollingCount count={tasks.length} />
       </div>
 
-      <div ref={setNodeRef} style={S.dropZone} className="scroll-area">
-        <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
-          <AnimatePresence initial={false}>
-            {tasks.map((task) => (
-              <motion.div
-                key={task._id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.96 }}
-                transition={{ duration: 0.2, ease: EASE }}
-              >
-                <TaskCard
-                  task={task}
-                  onClick={() => onTaskClick?.(task)}
-                  onToggleComplete={onToggleComplete}
-                />
-              </motion.div>
-            ))}
-          </AnimatePresence>
+      <div ref={setNodeRef} style={S.dropZone}>
+        <div style={isCapped ? S.dropZoneCapped : S.dropZoneList}>
+          <SortableContext items={taskIds} strategy={verticalListSortingStrategy}>
+            <AnimatePresence initial={false}>
+              {tasks.map((task) => (
+                <motion.div
+                  key={task._id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, scale: 0.96 }}
+                  transition={{ duration: 0.2, ease: EASE }}
+                >
+                  <TaskCard
+                    task={task}
+                    onClick={() => onTaskClick?.(task)}
+                    onToggleComplete={onToggleComplete}
+                  />
+                </motion.div>
+              ))}
+            </AnimatePresence>
 
-          {tasks.length === 0 && (
-            <div style={{ ...S.empty, borderColor: isOver ? "var(--signal-line)" : "var(--border)" }}>
-              {isOver ? "Drop here" : "No tasks"}
-            </div>
-          )}
-        </SortableContext>
+            {tasks.length === 0 && (
+              <div style={{ ...S.empty, borderColor: isOver ? "var(--signal-line)" : "var(--border)" }}>
+                {isOver ? "Drop here" : "No tasks"}
+              </div>
+            )}
+          </SortableContext>
+          {isCapped && <div style={S.fade} />}
+        </div>
+
+        {isCapped && (
+          <button onClick={() => setExpanded(true)} style={S.showMoreBtn}>
+            Show {hiddenCount} more
+          </button>
+        )}
+        {expanded && tasks.length > MAX_VISIBLE_CARDS && (
+          <button onClick={() => setExpanded(false)} style={S.showMoreBtn}>
+            Show less
+          </button>
+        )}
       </div>
     </div>
   );
@@ -262,7 +289,7 @@ function PlusIcon() {
 
 // ─── styles (token-driven) ──────────────────────────────────────────────────────
 const S = {
-  root: { display: "flex", flexDirection: "column", height: "100%", gap: 16 },
+  root: { display: "flex", flexDirection: "column", gap: 16 },
   boardHead: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 },
   boardTitle: {
     fontFamily: "var(--font-display)",
@@ -275,13 +302,12 @@ const S = {
   },
   boardCount: { fontFamily: "var(--font-mono)", fontSize: "0.7rem", fontWeight: 400, color: "var(--text-dim)" },
 
-  gridWrap: { flex: 1, minHeight: 0, overflowX: "auto" },
+  gridWrap: { overflowX: "auto" },
   grid: {
     display: "grid",
     gridTemplateColumns: "repeat(3, minmax(240px, 1fr))",
     gap: 14,
-    height: "100%",
-    minHeight: 320,
+    alignItems: "start",
   },
 
   column: {
@@ -319,7 +345,42 @@ const S = {
     textAlign: "right",
     display: "inline-block",
   },
-  dropZone: { flex: 1, overflowY: "auto", padding: "10px", display: "flex", flexDirection: "column", minHeight: 120 },
+  // Natural height now — no longer an internal scroll region. The inner
+  // dropZoneList/dropZoneCapped wrapper below controls whether cards are
+  // capped; this outer element stays the dnd-kit drop target either way so
+  // dragging past the visible fold still works.
+  dropZone: { padding: "10px", display: "flex", flexDirection: "column", minHeight: 120 },
+  dropZoneList: { display: "flex", flexDirection: "column" },
+  dropZoneCapped: {
+    display: "flex",
+    flexDirection: "column",
+    maxHeight: MAX_VISIBLE_CARDS * 72,
+    overflow: "hidden",
+    position: "relative",
+  },
+  fade: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 36,
+    background: "linear-gradient(180deg, transparent, var(--surface))",
+    pointerEvents: "none",
+  },
+  showMoreBtn: {
+    marginTop: 8,
+    alignSelf: "flex-start",
+    background: "none",
+    border: "none",
+    color: "var(--text-dim)",
+    fontFamily: "var(--font-mono)",
+    fontSize: "0.68rem",
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
+    cursor: "pointer",
+    padding: "4px 2px",
+    transition: "color .15s var(--ease)",
+  },
   empty: {
     flex: 1,
     display: "flex",

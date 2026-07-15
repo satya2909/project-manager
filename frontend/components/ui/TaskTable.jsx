@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Avatar, EmptyState } from "./primitive.jsx";
+import { Avatar, EmptyState, DueDateBadge } from "./primitive.jsx";
 import { fadeUp, stagger, EASE } from "../../motion/tokens";
 
 const STATUS = {
@@ -141,14 +141,17 @@ export default function TaskTable({ tasks = [], showProject = false, onTaskClick
                   </div>
                 </td>
                 <td style={S.td}>
-                  {(() => {
-                    const s = STATUS[task.status] || STATUS.todo;
-                    return (
-                      <span style={{ ...S.statusBadge, color: s.color, background: s.soft }}>
-                        {s.label}
-                      </span>
-                    );
-                  })()}
+                  <div style={S.statusCell}>
+                    {(() => {
+                      const s = STATUS[task.status] || STATUS.todo;
+                      return (
+                        <span style={{ ...S.statusBadge, color: s.color, background: s.soft }}>
+                          {s.label}
+                        </span>
+                      );
+                    })()}
+                    <DueDateBadge task={task} />
+                  </div>
                 </td>
               </motion.tr>
             ))}
@@ -194,6 +197,7 @@ const S = {
   assignee: { display: "flex", alignItems: "center", gap: 8 },
   assigneeName: { fontSize: "0.8rem", color: "var(--text)" },
   unassigned: { fontSize: "0.78rem", color: "var(--text-dim)", fontStyle: "italic" },
+  statusCell: { display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" },
   statusBadge: {
     fontFamily: "var(--font-mono)",
     fontSize: "0.66rem",

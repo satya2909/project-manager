@@ -4,9 +4,12 @@ import {
   getProjectTasks,
   getMyTasks,
   getOrgTasks,
+  getTimeline,
   createTask,
   getTaskById,
   updateTask,
+  updateTaskSchedule,
+  updateTaskDependencies,
   deleteTask,
   createSubTask,
   updateSubTask,
@@ -43,6 +46,11 @@ router.get("/me", getMyTasks);
 // so "org" is not parsed as a project id.
 router.get("/org", checkOrgRole(OrgRolesEnum.ADMIN), getOrgTasks);
 
+// ─── /tasks/:projectId/timeline ────────────────────────────────────────────────
+// Readable by any project member — not manager-gated, unlike schedule/dependency
+// mutations below.
+router.get("/:projectId/timeline", attachProject, getTimeline);
+
 // ─── /tasks/:projectId ────────────────────────────────────────────────────────
 
 router
@@ -73,6 +81,14 @@ router
         .withMessage(
           `Status must be one of: ${AvailableTaskStatus.join(", ")}`,
         ),
+      body("startDate")
+        .optional({ nullable: true })
+        .isISO8601()
+        .withMessage("Invalid start date"),
+      body("dueDate")
+        .optional({ nullable: true })
+        .isISO8601()
+        .withMessage("Invalid due date"),
     ],
     validate,
     createTask,
@@ -125,6 +141,45 @@ router
     validate,
     deleteTask,
   );
+
+// ─── /tasks/:projectId/t/:taskId/schedule ─────────────────────────────────────
+// Manager-only (no assignee carve-out, unlike PUT above) — dates are a
+// planning decision, not a personal-workflow field.
+router.patch(
+  "/:projectId/t/:taskId/schedule",
+  attachProject,
+  checkProjectRole(ProjectRolesEnum.PROJECT_ADMIN),
+  [
+    param("taskId").isMongoId().withMessage("Invalid task ID"),
+    body("startDate")
+      .optional({ nullable: true })
+      .isISO8601()
+      .withMessage("Invalid start date"),
+    body("dueDate")
+      .optional({ nullable: true })
+      .isISO8601()
+      .withMessage("Invalid due date"),
+  ],
+  validate,
+  updateTaskSchedule,
+);
+
+// ─── /tasks/:projectId/t/:taskId/dependencies ─────────────────────────────────
+// Manager-only. Body is the FULL desired dependsOn array (replace semantics).
+router.patch(
+  "/:projectId/t/:taskId/dependencies",
+  attachProject,
+  checkProjectRole(ProjectRolesEnum.PROJECT_ADMIN),
+  [
+    param("taskId").isMongoId().withMessage("Invalid task ID"),
+    body("dependsOn")
+      .isArray({ max: 20 })
+      .withMessage("dependsOn must be an array of at most 20 task IDs"),
+    body("dependsOn.*").isMongoId().withMessage("Invalid dependency task ID"),
+  ],
+  validate,
+  updateTaskDependencies,
+);
 
 // ─── /tasks/:projectId/t/:taskId/subtasks ─────────────────────────────────────
 

@@ -77,6 +77,34 @@ const taskSchema = new Schema(
         message: "A task can have a maximum of 5 attachments",
       },
     },
+
+    // ─── Timeline scheduling fields ──────────────────────────────────────────
+    startDate: {
+      type: Date,
+      default: null,
+    },
+
+    dueDate: {
+      type: Date,
+      default: null,
+      validate: {
+        validator: function (v) {
+          return !v || !this.startDate || v >= this.startDate;
+        },
+        message: "Due date cannot be before start date",
+      },
+    },
+
+    // Predecessor tasks (this task is blocked by these). Same-project validity
+    // is enforced in the controller, not here — see task.controllers.js.
+    dependsOn: {
+      type: [{ type: Schema.Types.ObjectId, ref: "Task" }],
+      default: [],
+      validate: {
+        validator: (arr) => arr.length <= 20,
+        message: "A task can depend on at most 20 other tasks",
+      },
+    },
   },
   {
     timestamps: true,

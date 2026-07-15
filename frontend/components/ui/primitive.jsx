@@ -5,6 +5,9 @@
 // (DESIGN.md §7 / REDESIGN-PLAN.md Phase 1)
 // ═══════════════════════════════════════════════════════════════════════════
 
+import { TriangleAlert, Clock } from "lucide-react";
+import { getDueDateStatus } from "../../utils/index.js";
+
 // ── Button ────────────────────────────────────────────────────────────────────
 export function Button({ variant = "primary", className = "", children, ...props }) {
   return (
@@ -42,6 +45,32 @@ export function Badge({ tone = "member", className = "", children, ...props }) {
     <span className={`badge badge-${tone} ${className}`.trim()} {...props}>
       {children}
     </span>
+  );
+}
+
+// ── DueDateBadge ─────────────────────────────────────────────────────────────
+// Overdue/due-soon indicator, shared by TaskCard and TaskTable so both the
+// Kanban board and every table view (per-project + org-wide hub) render the
+// same rule. Icon + color, not color alone — WCAG 1.4.1, colorblind viewers
+// can't rely on red-vs-amber to tell overdue from due-soon.
+export function DueDateBadge({ task }) {
+  const status = getDueDateStatus(task);
+  if (!status) return null;
+
+  if (status === "overdue") {
+    return (
+      <Badge tone="overdue">
+        <TriangleAlert size={11} strokeWidth={2.25} />
+        Overdue
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge tone="due-soon">
+      <Clock size={11} strokeWidth={2.25} />
+      Due soon
+    </Badge>
   );
 }
 
@@ -255,6 +284,7 @@ export default {
   IconButton,
   Card,
   Badge,
+  DueDateBadge,
   Label,
   Input,
   Field,

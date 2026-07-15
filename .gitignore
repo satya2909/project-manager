@@ -3,4 +3,5 @@ node_modules/
 .claude
 CLAUDE.md
 .gitignore
-docs/superpowers/
+docs/
+plans/

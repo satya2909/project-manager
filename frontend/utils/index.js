@@ -98,6 +98,21 @@ export function formatFileSize(bytes) {
   return `${(bytes / 1024 ** i).toFixed(1)} ${units[i]}`;
 }
 
+// ─── DUE DATE STATUS ──────────────────────────────────────────────────────────
+// "overdue" | "due_soon" | null. Client-local timezone (Date.now(), the
+// viewer's browser clock) — matches how every other timestamp in this app
+// already renders; not server time or an org-level timezone setting.
+export function getDueDateStatus(task) {
+  if (!task?.dueDate || task.status === "done") return null;
+
+  const dueMs = new Date(task.dueDate).getTime();
+  const hoursUntilDue = (dueMs - Date.now()) / (1000 * 60 * 60);
+
+  if (hoursUntilDue < 0) return "overdue";
+  if (hoursUntilDue <= 48) return "due_soon";
+  return null;
+}
+
 // ─── TASK PROGRESS ────────────────────────────────────────────────────────────
 export function getTaskProgress(subtasks = []) {
   if (!subtasks.length) return null;

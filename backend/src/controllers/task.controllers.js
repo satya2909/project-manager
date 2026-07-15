@@ -5,6 +5,12 @@ import { ApiError } from "../utils/api-error.js";
 import { ApiResponses } from "../utils/api-responses.js";
 import { asyncHandler } from "../utils/async-handler.js";
 import { TaskStatusEnum, ProjectRolesEnum } from "../utils/constants.js";
+import { wouldCreateCycle } from "../utils/dependency-graph.js";
+
+// Above this task count, GET /timeline and the dependency cycle-check both
+// fetch the project's full task set in one query — a tripwire log, not a
+// fix, so an unusually large project shows up in logs before it's a problem.
+const LARGE_PROJECT_TASK_COUNT = 2000;
 
 // ─── helper ───────────────────────────────────────────────────────────────────
 // Fire-and-forget activity log — never throws so it can't break the response.
@@ -17,6 +23,19 @@ const log = (projectId, userId, action, target = "", metadata = {}) => {
     metadata,
   }).catch((e) => console.error("[Activity]", e.message));
 };
+
+// ─── helper ───────────────────────────────────────────────────────────────────
+// Shared by getProjectTasks/getMyTasks/getOrgTasks — each needs the same
+// subtask-completion rollup on top of populated `subTasks`. GET /timeline
+// does NOT use this: its payload deliberately excludes subtask data.
+const withSubTaskStats = (tasks) =>
+  tasks.map((t) => ({
+    ...t,
+    subTaskStats: {
+      total: t.subTasks?.length ?? 0,
+      completed: t.subTasks?.filter((s) => s.isCompleted).length ?? 0,
+    },
+  }));
 
 // ─── GET /tasks/:projectId ────────────────────────────────────────────────────
 export const getProjectTasks = asyncHandler(async (req, res) => {
@@ -41,13 +60,7 @@ export const getProjectTasks = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 })
     .lean();
 
-  const tasksWithStats = tasks.map((t) => ({
-    ...t,
-    subTaskStats: {
-      total: t.subTasks?.length ?? 0,
-      completed: t.subTasks?.filter((s) => s.isCompleted).length ?? 0,
-    },
-  }));
+  const tasksWithStats = withSubTaskStats(tasks);
 
   return res
     .status(200)
@@ -85,13 +98,9 @@ export const getMyTasks = asyncHandler(async (req, res) => {
     if (m) roleByProject.set(p._id.toString(), m.role);
   });
 
-  const tasksWithMeta = tasks.map((t) => ({
+  const tasksWithMeta = withSubTaskStats(tasks).map((t) => ({
     ...t,
     myRole: roleByProject.get(t.project?._id?.toString()) ?? "member",
-    subTaskStats: {
-      total: t.subTasks?.length ?? 0,
-      completed: t.subTasks?.filter((s) => s.isCompleted).length ?? 0,
-    },
   }));
 
   return res
@@ -117,22 +126,38 @@ export const getOrgTasks = asyncHandler(async (req, res) => {
     .sort({ project: 1, createdAt: -1 })
     .lean();
 
-  const tasksWithStats = tasks.map((t) => ({
-    ...t,
-    subTaskStats: {
-      total: t.subTasks?.length ?? 0,
-      completed: t.subTasks?.filter((s) => s.isCompleted).length ?? 0,
-    },
-  }));
+  const tasksWithStats = withSubTaskStats(tasks);
 
   return res
     .status(200)
     .json(new ApiResponses(200, { tasks: tasksWithStats }, "Org tasks fetched"));
 });
 
+// ─── GET /tasks/:projectId/timeline ────────────────────────────────────────────
+// Lighter payload than getProjectTasks — no attachments/subtasks, since the
+// timeline view only needs dates and dependency links. Readable by any
+// project member (not manager-gated, unlike schedule/dependency mutations).
+export const getTimeline = asyncHandler(async (req, res) => {
+  const tasks = await Task.find({ project: req.project._id })
+    .select("title status startDate dueDate dependsOn assignedTo")
+    .populate("assignedTo", "username fullName avatar")
+    .populate({ path: "dependsOn", select: "title" })
+    .lean();
+
+  if (tasks.length > LARGE_PROJECT_TASK_COUNT) {
+    console.warn(
+      `[Timeline] GET /timeline: project ${req.project._id} has ${tasks.length} tasks — fetch may be slow`,
+    );
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponses(200, { tasks }, "Timeline tasks fetched"));
+});
+
 // ─── POST /tasks/:projectId ───────────────────────────────────────────────────
 export const createTask = asyncHandler(async (req, res) => {
-  const { title, description, assignedTo, status } = req.body;
+  const { title, description, assignedTo, status, startDate, dueDate } = req.body;
 
   if (assignedTo) {
     const isMember = req.project.members.some(
@@ -143,14 +168,24 @@ export const createTask = asyncHandler(async (req, res) => {
     }
   }
 
-  const task = await Task.create({
-    title,
-    description,
-    project: req.project._id,
-    assignedTo: assignedTo || null,
-    createdBy: req.user._id,
-    status: status || TaskStatusEnum.TODO,
-  });
+  let task;
+  try {
+    task = await Task.create({
+      title,
+      description,
+      project: req.project._id,
+      assignedTo: assignedTo || null,
+      createdBy: req.user._id,
+      status: status || TaskStatusEnum.TODO,
+      startDate: startDate || null,
+      dueDate: dueDate || null,
+    });
+  } catch (err) {
+    if (err.name === "ValidationError") {
+      throw new ApiError(400, err.message);
+    }
+    throw err;
+  }
 
   const populated = await Task.findById(task._id)
     .populate("assignedTo", "username fullName avatar")
@@ -271,6 +306,188 @@ export const updateTask = asyncHandler(async (req, res) => {
     .json(new ApiResponses(200, { task: updatedTask }, "Task updated"));
 });
 
+// ─── PATCH /tasks/:projectId/t/:taskId/schedule ───────────────────────────────
+// Manager-only (checkProjectRole at the route). Route-level express-validator
+// rejects malformed date strings before this runs; the dueDate>=startDate
+// business rule lives in the Mongoose schema validator and is caught here.
+export const updateTaskSchedule = asyncHandler(async (req, res) => {
+  const { taskId } = req.params;
+  const { startDate, dueDate } = req.body;
+
+  const task = await Task.findOne({ _id: taskId, project: req.project._id });
+  if (!task) {
+    throw new ApiError(404, "Task not found");
+  }
+
+  const from = { startDate: task.startDate, dueDate: task.dueDate };
+
+  // Mutate + .save() rather than findByIdAndUpdate: the dueDate>=startDate
+  // validator reads a sibling field via `this.startDate`, which only has
+  // access to the full document during .save() — a findByIdAndUpdate() with
+  // a partial $set only exposes the fields being updated to the validator,
+  // so an update that touches dueDate alone would silently skip checking it
+  // against the unmodified startDate already on the document.
+  if (startDate !== undefined) task.startDate = startDate;
+  if (dueDate !== undefined) task.dueDate = dueDate;
+
+  try {
+    await task.save();
+  } catch (err) {
+    if (err.name === "ValidationError") {
+      throw new ApiError(400, err.message);
+    }
+    throw err;
+  }
+
+  const updatedTask = await task.populate(
+    "assignedTo createdBy",
+    "username fullName avatar",
+  );
+
+  log(req.project._id, req.user._id, "rescheduled_task", task.title, {
+    from,
+    to: { startDate: updatedTask.startDate, dueDate: updatedTask.dueDate },
+  });
+
+  return res
+    .status(200)
+    .json(new ApiResponses(200, { task: updatedTask }, "Task rescheduled"));
+});
+
+// ─── PATCH /tasks/:projectId/t/:taskId/dependencies ───────────────────────────
+// Manager-only. Client submits the FULL desired dependsOn array (replace
+// semantics) — the controller diffs against the current array to find what
+// was actually added/removed, since only newly-added edges need a cycle
+// check and each add/remove gets its own Activity log entry.
+//
+//   fetch task + project's full task set (1 query each)
+//     -> diff added/removed dependency ids
+//     -> validate added targets: same project, not self
+//     -> cycle-check each added edge (in-memory walk, no per-hop query)
+//     -> save with __v version guard; on conflict, refetch + recheck once
+//     -> log one Activity entry per added/removed link
+export const updateTaskDependencies = asyncHandler(async (req, res) => {
+  const { taskId } = req.params;
+  const newIds = [...new Set((req.body.dependsOn || []).map(String))];
+
+  const task = await Task.findOne({ _id: taskId, project: req.project._id });
+  if (!task) {
+    throw new ApiError(404, "Task not found");
+  }
+
+  const currentIds = task.dependsOn.map((id) => id.toString());
+  const addedIds = newIds.filter((id) => !currentIds.includes(id));
+  const removedIds = currentIds.filter((id) => !newIds.includes(id));
+
+  if (addedIds.length === 0 && removedIds.length === 0) {
+    const unchanged = await Task.findById(taskId).populate(
+      "assignedTo createdBy",
+      "username fullName avatar",
+    );
+    return res
+      .status(200)
+      .json(new ApiResponses(200, { task: unchanged }, "No dependency changes"));
+  }
+
+  if (addedIds.includes(taskId)) {
+    throw new ApiError(400, "A task cannot depend on itself");
+  }
+
+  const addedTargets = addedIds.length
+    ? await Task.find({ _id: { $in: addedIds } })
+        .select("_id project title")
+        .lean()
+    : [];
+  if (addedTargets.length !== addedIds.length) {
+    throw new ApiError(404, "One or more dependency targets not found");
+  }
+  const crossProjectTarget = addedTargets.find(
+    (t) => t.project.toString() !== req.project._id.toString(),
+  );
+  if (crossProjectTarget) {
+    throw new ApiError(400, "Dependency must be in the same project");
+  }
+
+  const checkForCycles = async () => {
+    const projectTasks = await Task.find({ project: req.project._id })
+      .select("_id dependsOn")
+      .lean();
+    if (projectTasks.length > LARGE_PROJECT_TASK_COUNT) {
+      console.warn(
+        `[Timeline] PATCH /dependencies: project ${req.project._id} has ${projectTasks.length} tasks — cycle check may be slow`,
+      );
+    }
+    for (const newDependsOnId of addedIds) {
+      if (wouldCreateCycle(projectTasks, taskId, newDependsOnId)) {
+        throw new ApiError(409, "This would create a circular dependency");
+      }
+    }
+  };
+
+  await checkForCycles();
+
+  // Optimistic concurrency: only save if the document's version hasn't
+  // changed since we read it. findOneAndUpdate doesn't auto-bump __v the way
+  // .save() does, so the write itself increments it — that's what makes the
+  // NEXT concurrent writer's __v match fail instead of both writes silently
+  // succeeding and producing an actual cycle (e.g. two managers linking
+  // A→B and B→A at once).
+  let updatedTask = await Task.findOneAndUpdate(
+    { _id: taskId, __v: task.__v },
+    { $set: { dependsOn: newIds }, $inc: { __v: 1 } },
+    { new: true, runValidators: true },
+  );
+
+  if (!updatedTask) {
+    const fresh = await Task.findOne({ _id: taskId, project: req.project._id });
+    if (!fresh) {
+      throw new ApiError(404, "Task not found");
+    }
+    await checkForCycles();
+    updatedTask = await Task.findOneAndUpdate(
+      { _id: taskId, __v: fresh.__v },
+      { $set: { dependsOn: newIds }, $inc: { __v: 1 } },
+      { new: true, runValidators: true },
+    );
+    if (!updatedTask) {
+      throw new ApiError(409, "Task was modified concurrently, please retry");
+    }
+  }
+
+  // dependsOn must be populated here too — the frontend's dependency-line
+  // rendering reads dep.title/dep._id off each entry, same shape GET
+  // /timeline returns. Without this, a successful PATCH response would hand
+  // back raw ObjectIds and silently break the client's dependency lookups.
+  updatedTask = await updatedTask.populate([
+    { path: "assignedTo createdBy", select: "username fullName avatar" },
+    { path: "dependsOn", select: "title" },
+  ]);
+
+  const removedTargets = removedIds.length
+    ? await Task.find({ _id: { $in: removedIds } })
+        .select("title")
+        .lean()
+    : [];
+  const titleById = new Map(
+    [...addedTargets, ...removedTargets].map((t) => [t._id.toString(), t.title]),
+  );
+
+  addedIds.forEach((id) =>
+    log(req.project._id, req.user._id, "linked_dependency", task.title, {
+      dependsOnTitle: titleById.get(id),
+    }),
+  );
+  removedIds.forEach((id) =>
+    log(req.project._id, req.user._id, "unlinked_dependency", task.title, {
+      dependsOnTitle: titleById.get(id),
+    }),
+  );
+
+  return res
+    .status(200)
+    .json(new ApiResponses(200, { task: updatedTask }, "Dependencies updated"));
+});
+
 // ─── DELETE /tasks/:projectId/t/:taskId ───────────────────────────────────────
 export const deleteTask = asyncHandler(async (req, res) => {
   const { taskId, projectId } = req.params;
@@ -281,6 +498,13 @@ export const deleteTask = asyncHandler(async (req, res) => {
   }
 
   await SubTask.deleteMany({ task: taskId });
+
+  // Scrub dangling dependsOn refs — any task in this project that depended on
+  // the one being deleted must not be left pointing at a ghost ID.
+  await Task.updateMany(
+    { project: req.project._id, dependsOn: taskId },
+    { $pull: { dependsOn: taskId } },
+  );
 
   const uploadDir = path.join(
     process.cwd(),

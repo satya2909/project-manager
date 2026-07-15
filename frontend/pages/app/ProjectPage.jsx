@@ -2,6 +2,7 @@ import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import KanbanBoard from "../../components/ui/KanbanBoard.jsx";
 import TaskTable from "../../components/ui/TaskTable.jsx";
+import TimelineSection from "../../components/ui/TimelineSection.jsx";
 import CreateTaskModal from "../../components/ui/CreateTaskModal.jsx";
 import TaskDetailDrawer from "../../components/ui/TaskDetailDrawer.jsx";
 import { useTasks, useMembers, useNotes } from "../../hooks/index.js";
@@ -162,7 +163,7 @@ function MembersTab({ projectId }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      style={{ ...PS.tabContent, overflowY: "auto" }}
+      style={PS.tabContent}
     >
       <MembersPanel projectId={projectId} />
     </motion.div>
@@ -289,7 +290,7 @@ function NotesTab({ projectId, canAdmin }) {
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.2 }}
-      style={{ ...PS.tabContent, overflowY: "auto" }}
+      style={PS.tabContent}
     >
       {/* admin toolbar */}
       {canAdmin && (
@@ -528,7 +529,7 @@ function TasksTab({ project, members }) {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        style={{ height: "100%", display: "flex", flexDirection: "column", gap: 12 }}
+        style={{ display: "flex", flexDirection: "column", gap: 12 }}
       >
         <div style={PS.tasksToolbar}>
           <ViewToggle view={view} onChange={handleViewChange} />
@@ -540,15 +541,13 @@ function TasksTab({ project, members }) {
         </div>
 
         {view === "kanban" ? (
-          <div style={{ flex: 1, minHeight: 0 }}>
-            <KanbanBoard
-              tasks={tasks}
-              onTaskMove={handleTaskMove}
-              onTaskClick={handleTaskClick}
-              onCreateTask={() => setShowCreateTask(true)}
-              canCreate={canManage}
-            />
-          </div>
+          <KanbanBoard
+            tasks={tasks}
+            onTaskMove={handleTaskMove}
+            onTaskClick={handleTaskClick}
+            onCreateTask={() => setShowCreateTask(true)}
+            canCreate={canManage}
+          />
         ) : (
           <TaskTable
             tasks={tasks}
@@ -558,6 +557,10 @@ function TasksTab({ project, members }) {
             }
           />
         )}
+
+        {/* Collapsible, below whichever of Board/Table is selected — not a
+            third ViewToggle tab. Per-project only (no org-wide timeline). */}
+        <TimelineSection projectId={projectId} canManage={canManage} />
       </motion.div>
       <CreateTaskModal
         isOpen={showCreateTask}
@@ -661,7 +664,14 @@ export default function ProjectPage({ project, onBack }) {
 
 // ── styles ────────────────────────────────────────────────────────────────────
 const PS = {
-  page: { display: "flex", flexDirection: "column", height: "100%", minHeight: 0 },
+  // No height/overflow ownership here — AppShell's <main> (S.content in
+  // AppShell.jsx) is already the one page-level scroll container. Claiming
+  // height:100% + overflow:hidden here created a second, nested scroll
+  // region that fought the outer one: header/stats/tabs read as pinned
+  // (clipped to the inner container's fitted height) and short content left
+  // a forced gap at the bottom (ProjectPage was always exactly as tall as
+  // the outer viewport, never its natural content height).
+  page: { display: "flex", flexDirection: "column" },
   pageHeader: { marginBottom: 14 },
   backBtn: {
     background: "none",
@@ -729,8 +739,8 @@ const PS = {
   },
   tabUnderline: { position: "absolute", left: 8, right: 8, bottom: -1, height: 2, background: "var(--signal)", borderRadius: 2 },
   tabRest: { flex: 1 },
-  contentArea: { flex: 1, minHeight: 0, overflow: "hidden" },
-  tabContent: { height: "100%", overflowY: "auto" },
+  contentArea: {},
+  tabContent: {},
 
   // notes toolbar
   notesToolbar: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, paddingBottom: 10, borderBottom: "1px solid var(--border)" },

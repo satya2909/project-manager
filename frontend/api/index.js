@@ -148,6 +148,11 @@ export const tasksApi = {
   list: (projectId) => api.get(`/tasks/${projectId}`),
   listMine: () => api.get("/tasks/me"),
   listOrg: () => api.get("/tasks/org"),
+  listTimeline: (projectId) => api.get(`/tasks/${projectId}/timeline`),
+  updateSchedule: (projectId, taskId, data) =>
+    api.patch(`/tasks/${projectId}/t/${taskId}/schedule`, data),
+  updateDependencies: (projectId, taskId, data) =>
+    api.patch(`/tasks/${projectId}/t/${taskId}/dependencies`, data),
   create: (projectId, data) => api.post(`/tasks/${projectId}`, data),
   get: (projectId, taskId) => api.get(`/tasks/${projectId}/t/${taskId}`),
   update: (projectId, taskId, data) =>
