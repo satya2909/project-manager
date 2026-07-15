@@ -1,11 +1,61 @@
 import { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import KanbanBoard from "../../components/ui/KanbanBoard.jsx";
+import TaskTable from "../../components/ui/TaskTable.jsx";
 import CreateTaskModal from "../../components/ui/CreateTaskModal.jsx";
 import TaskDetailDrawer from "../../components/ui/TaskDetailDrawer.jsx";
 import { useTasks, useMembers, useNotes } from "../../hooks/index.js";
 import { useAuth } from "../../context/authcontext.jsx";
 import MembersPanel from "../../components/ui/MembersPanel.jsx";
+import { Button } from "../../components/ui/primitive.jsx";
+
+// ── task view preference (per project, localStorage) ───────────────────────────
+// Wrapped in try/catch: private browsing / full storage must never crash the
+// page — it just means the view choice won't persist across visits.
+const TASK_VIEW_PREFIX = "taskView:";
+
+function getStoredTaskView(projectId) {
+  try {
+    return localStorage.getItem(TASK_VIEW_PREFIX + projectId) || "kanban";
+  } catch {
+    return "kanban";
+  }
+}
+
+function setStoredTaskView(projectId, view) {
+  try {
+    localStorage.setItem(TASK_VIEW_PREFIX + projectId, view);
+  } catch {
+    /* storage unavailable — view choice just won't persist, non-fatal */
+  }
+}
+
+function ViewToggle({ view, onChange }) {
+  const OPTIONS = [
+    { value: "kanban", label: "Board" },
+    { value: "table", label: "Table" },
+  ];
+  return (
+    <div style={PS.viewToggle}>
+      {OPTIONS.map((o) => {
+        const active = view === o.value;
+        return (
+          <button
+            key={o.value}
+            onClick={() => !active && onChange(o.value)}
+            style={{
+              ...PS.viewToggleBtn,
+              color: active ? "var(--text)" : "var(--text-dim)",
+              background: active ? "var(--surface-2)" : "transparent",
+            }}
+          >
+            {o.label}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 // ── role badges ───────────────────────────────────────────────────────────────
 // Project-level role (this user's role within THIS project). Greenish palette.
@@ -405,6 +455,12 @@ function TasksTab({ project, members }) {
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const [view, setView] = useState(() => getStoredTaskView(projectId));
+
+  const handleViewChange = (next) => {
+    setView(next);
+    setStoredTaskView(projectId, next);
+  };
 
   const myMembership = project.members?.find(
     (m) => (m.user?._id || m.user)?.toString() === user?._id?.toString(),
@@ -472,15 +528,36 @@ function TasksTab({ project, members }) {
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
-        style={{ height: "100%" }}
+        style={{ height: "100%", display: "flex", flexDirection: "column", gap: 12 }}
       >
-        <KanbanBoard
-          tasks={tasks}
-          onTaskMove={handleTaskMove}
-          onTaskClick={handleTaskClick}
-          onCreateTask={() => setShowCreateTask(true)}
-          canCreate={canManage}
-        />
+        <div style={PS.tasksToolbar}>
+          <ViewToggle view={view} onChange={handleViewChange} />
+          {view === "table" && canManage && (
+            <Button variant="primary" onClick={() => setShowCreateTask(true)}>
+              + New task
+            </Button>
+          )}
+        </div>
+
+        {view === "kanban" ? (
+          <div style={{ flex: 1, minHeight: 0 }}>
+            <KanbanBoard
+              tasks={tasks}
+              onTaskMove={handleTaskMove}
+              onTaskClick={handleTaskClick}
+              onCreateTask={() => setShowCreateTask(true)}
+              canCreate={canManage}
+            />
+          </div>
+        ) : (
+          <TaskTable
+            tasks={tasks}
+            onTaskClick={handleTaskClick}
+            emptyMessage={
+              canManage ? "Create your first task to get started." : "No tasks yet."
+            }
+          />
+        )}
       </motion.div>
       <CreateTaskModal
         isOpen={showCreateTask}
@@ -622,6 +699,20 @@ const PS = {
   completionTrack: { width: 120, height: 3, background: "var(--border)", borderRadius: 2, overflow: "hidden" },
   completionFill: { height: "100%", borderRadius: 2 },
   completionPct: { fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--text-dim)", width: 32, textAlign: "right", flexShrink: 0 },
+
+  // tasks toolbar (view toggle + table-view create button)
+  tasksToolbar: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexShrink: 0 },
+  viewToggle: { display: "flex", gap: 2, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--r-md)", padding: 2 },
+  viewToggleBtn: {
+    border: "none",
+    borderRadius: "var(--r-sm)",
+    fontFamily: "var(--font-sans)",
+    fontSize: "0.78rem",
+    fontWeight: 500,
+    padding: "5px 12px",
+    cursor: "pointer",
+    transition: "all .15s var(--ease)",
+  },
 
   // tabs
   tabBar: { display: "flex", borderBottom: "1px solid var(--border)", flexShrink: 0, marginBottom: 20 },

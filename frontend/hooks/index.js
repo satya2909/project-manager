@@ -309,6 +309,62 @@ export function useMyTasks() {
   return { tasks, loading, error, refetch: fetch, updateStatus, setTasks };
 }
 
+// ─── useTaskHub ───────────────────────────────────────────────────────────────
+// Org-wide task hub: owners/admins see every task in the org (GET /tasks/org),
+// everyone else sees only tasks assigned to them (GET /tasks/me) — same as
+// useMyTasks, but that hook stays untouched since CommandPalette relies on it
+// always meaning "my" tasks regardless of org role.
+export function useTaskHub(isOrgManager) {
+  const [tasks, setTasks] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  const fetch = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const { data } = isOrgManager
+        ? await tasksApi.listOrg()
+        : await tasksApi.listMine();
+      // /tasks/org doesn't return myRole (every task is manageable by the org
+      // manager who fetched it — checkProjectRole already grants org owners/
+      // admins effective admin on every project in their org). /tasks/me does
+      // return myRole per-task, so leave it as-is for the member path.
+      setTasks(
+        (data?.data?.tasks ?? []).map((t) => ({
+          ...normalizeMyTask(t),
+          ...(isOrgManager ? { myRole: "admin" } : {}),
+        })),
+      );
+    } catch (err) {
+      setError(parseApiError(err));
+    } finally {
+      setLoading(false);
+    }
+  }, [isOrgManager]);
+
+  useEffect(() => {
+    fetch();
+  }, [fetch]);
+
+  // Optimistic status change. On failure, refetch to restore authoritative
+  // state (a status-only change is safe to reload wholesale).
+  const updateStatus = async (projectId, taskId, status) => {
+    setTasks((prev) =>
+      prev.map((t) => (t._id === taskId ? { ...t, status } : t)),
+    );
+    try {
+      await tasksApi.update(projectId, taskId, { status });
+      return { success: true };
+    } catch (err) {
+      await fetch();
+      return { success: false, error: parseApiError(err) };
+    }
+  };
+
+  return { tasks, loading, error, refetch: fetch, updateStatus, setTasks };
+}
+
 // ─── useTask (single) ─────────────────────────────────────────────────────────
 export function useTask(projectId, taskId) {
   const [task, setTask] = useState(null);

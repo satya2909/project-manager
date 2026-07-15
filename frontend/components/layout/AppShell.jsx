@@ -88,8 +88,13 @@ export default function AppShell({
 
   // Org owner/admin see the Organization admin area.
   const isOrgManager = user?.role === "owner" || user?.role === "admin";
+  // "My Tasks" now shows every org task for owners/admins (see MyTasksPage) —
+  // relabel so the nav doesn't promise a narrower scope than the page delivers.
   const navItems = isOrgManager
-    ? [...NAV_ITEMS, { id: "organization", label: "Organization", icon: BuildingIcon }]
+    ? [
+        ...NAV_ITEMS.map((item) => (item.id === "tasks" ? { ...item, label: "All Tasks" } : item)),
+        { id: "organization", label: "Organization", icon: BuildingIcon },
+      ]
     : NAV_ITEMS;
 
   const railCollapsed = collapsed && !isMobile;

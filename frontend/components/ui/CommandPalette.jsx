@@ -23,7 +23,7 @@ function PaletteContent({ projects, onOpenProject, onNavigate, onCreateProject, 
   const commands = useMemo(() => {
     const list = [];
     list.push({ group: "Actions", id: "go-dashboard", label: "Go to Dashboard", icon: LayoutGrid, run: () => onNavigate("dashboard") });
-    list.push({ group: "Actions", id: "go-tasks", label: "Go to My Tasks", icon: CheckSquare, run: () => onNavigate("tasks") });
+    list.push({ group: "Actions", id: "go-tasks", label: isOrgManager ? "Go to All Tasks" : "Go to My Tasks", icon: CheckSquare, run: () => onNavigate("tasks") });
     if (isOrgManager)
       list.push({ group: "Actions", id: "go-org", label: "Go to Organization", icon: Users, run: () => onNavigate("organization") });
     if (canCreateProject)

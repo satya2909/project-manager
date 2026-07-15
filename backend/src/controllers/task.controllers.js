@@ -99,6 +99,37 @@ export const getMyTasks = asyncHandler(async (req, res) => {
     .json(new ApiResponses(200, { tasks: tasksWithMeta }, "My tasks fetched"));
 });
 
+// ─── GET /tasks/org ───────────────────────────────────────────────────────────
+// Org-wide: every task belonging to any project in the requester's organization.
+// Route-gated to owner/admin via checkOrgRole — this bypasses per-project
+// membership entirely, so the route MUST NOT be reachable by plain members.
+export const getOrgTasks = asyncHandler(async (req, res) => {
+  const projects = await Project.find({ organization: req.user.organization })
+    .select("_id")
+    .lean();
+  const projectIds = projects.map((p) => p._id);
+
+  const tasks = await Task.find({ project: { $in: projectIds } })
+    .populate("assignedTo", "username fullName avatar")
+    .populate("createdBy", "username fullName avatar")
+    .populate("project", "name")
+    .populate({ path: "subTasks", select: "title isCompleted" })
+    .sort({ project: 1, createdAt: -1 })
+    .lean();
+
+  const tasksWithStats = tasks.map((t) => ({
+    ...t,
+    subTaskStats: {
+      total: t.subTasks?.length ?? 0,
+      completed: t.subTasks?.filter((s) => s.isCompleted).length ?? 0,
+    },
+  }));
+
+  return res
+    .status(200)
+    .json(new ApiResponses(200, { tasks: tasksWithStats }, "Org tasks fetched"));
+});
+
 // ─── POST /tasks/:projectId ───────────────────────────────────────────────────
 export const createTask = asyncHandler(async (req, res) => {
   const { title, description, assignedTo, status } = req.body;

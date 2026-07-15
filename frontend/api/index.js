@@ -147,6 +147,7 @@ export const projectsApi = {
 export const tasksApi = {
   list: (projectId) => api.get(`/tasks/${projectId}`),
   listMine: () => api.get("/tasks/me"),
+  listOrg: () => api.get("/tasks/org"),
   create: (projectId, data) => api.post(`/tasks/${projectId}`, data),
   get: (projectId, taskId) => api.get(`/tasks/${projectId}/t/${taskId}`),
   update: (projectId, taskId, data) =>

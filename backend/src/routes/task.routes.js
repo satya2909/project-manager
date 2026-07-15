@@ -3,6 +3,7 @@ import { body, param } from "express-validator";
 import {
   getProjectTasks,
   getMyTasks,
+  getOrgTasks,
   createTask,
   getTaskById,
   updateTask,
@@ -16,11 +17,16 @@ import {
 import {
   verifyJWT,
   checkProjectRole,
+  checkOrgRole,
 } from "../middlewares/auth.middlewares.js";
 import { attachProject } from "../middlewares/project.middlewares.js";
 import { validate } from "../middlewares/validator.middlewares.js";
 import { uploadTaskFiles } from "../middlewares/multer.middlewares.js";
-import { ProjectRolesEnum, AvailableTaskStatus } from "../utils/constants.js";
+import {
+  ProjectRolesEnum,
+  OrgRolesEnum,
+  AvailableTaskStatus,
+} from "../utils/constants.js";
 
 const router = Router();
 
@@ -31,6 +37,11 @@ router.use(verifyJWT);
 // ─── /tasks/me ────────────────────────────────────────────────────────────────
 // MUST be declared before "/:projectId" so "me" is not parsed as a project id.
 router.get("/me", getMyTasks);
+
+// ─── /tasks/org ───────────────────────────────────────────────────────────────
+// Org-wide task list, owner/admin only. MUST be declared before "/:projectId"
+// so "org" is not parsed as a project id.
+router.get("/org", checkOrgRole(OrgRolesEnum.ADMIN), getOrgTasks);
 
 // ─── /tasks/:projectId ────────────────────────────────────────────────────────
 

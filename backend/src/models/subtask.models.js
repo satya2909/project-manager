@@ -20,7 +20,6 @@ const subTaskSchema = new Schema(
       type: Schema.Types.ObjectId,
       ref: "Task",
       required: true,
-      index: true,
     },
 
     // Who is responsible for completing this subtask
