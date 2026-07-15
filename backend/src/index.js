@@ -5,13 +5,18 @@ import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Go up 3 levels: src -> backend -> project root
-dotenv.config({ path: path.resolve(__dirname, "../../..", ".env") });
+// Go up 2 levels: src -> backend -> project root
+dotenv.config({ path: path.resolve(__dirname, "../..", ".env") });
 
-console.log("MONGO_URI:", process.env.MONGO_URI ? "✓ loaded" : "✗ missing");
+// Dynamic imports (not static) so nothing below is evaluated until dotenv has
+// actually populated process.env — static imports are hoisted and would run
+// before the dotenv.config() call above, leaving app.js's module-level env
+// reads (NODE_ENV, CORS_ORIGIN) seeing undefined.
+const { validateEnv } = await import("./utils/validate-env.js");
+validateEnv();
 
-import connectDB from "./db/database.js";
-import app from "./app.js";
+const { default: connectDB } = await import("./db/database.js");
+const { default: app } = await import("./app.js");
 
 const port = process.env.PORT || 3000;
 

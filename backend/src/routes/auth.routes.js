@@ -14,7 +14,13 @@ import {
 } from "../controllers/auth.controllers.js";
 import { verifyJWT } from "../middlewares/auth.middlewares.js";
 import { validate } from "../middlewares/validator.middlewares.js";
-import { limitRegister } from "../middlewares/ratelimit.middlewares.js";
+import {
+  limitRegister,
+  limitLogin,
+  limitForgotPassword,
+  limitResetPassword,
+  limitResendVerification,
+} from "../middlewares/ratelimit.middlewares.js";
 
 const router = Router();
 
@@ -68,6 +74,7 @@ router.post(
 
 router.post(
   "/login",
+  limitLogin,
   [
     body("email")
       .trim()
@@ -101,6 +108,7 @@ router.get(
 
 router.post(
   "/forgot-password",
+  limitForgotPassword,
   [
     body("email")
       .trim()
@@ -116,6 +124,7 @@ router.post(
 
 router.post(
   "/reset-password/:resetToken",
+  limitResetPassword,
   [
     param("resetToken").notEmpty().withMessage("Reset token is required"),
     body("newPassword")
@@ -160,6 +169,10 @@ router.post(
   changeCurrentPassword,
 );
 
-router.post("/resend-email-verification", resendEmailVerification);
+router.post(
+  "/resend-email-verification",
+  limitResendVerification,
+  resendEmailVerification,
+);
 
 export default router;

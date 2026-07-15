@@ -18,6 +18,8 @@
   "scripts": {
     "client": "cd frontend && vite",
     "server": "nodemon backend/src/index.js",
+    "build": "cd frontend && npm run build",
+    "start": "node backend/src/index.js",
     "migrate:orgs": "node backend/src/scripts/migrate-organizations.js",
     "test": "vitest run"
   },
@@ -44,6 +46,7 @@
     "express-rate-limit": "^8.5.2",
     "express-validator": "^7.3.2",
     "framer-motion": "^12.40.0",
+    "helmet": "^8.3.0",
     "jsonwebtoken": "^9.0.3",
     "lucide-react": "^1.17.0",
     "mongoose": "^9.6.3",

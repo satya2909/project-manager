@@ -1,48 +1,32 @@
-// Rate limiting middleware for unauthenticated endpoints
-// Custom in-memory rate limiter - Tracks requests by IP address and endpoint
-// Production scaling note: For multi-instance deployments, migrate to Redis-backed store.
-// Usage: const store = new RedisStore({ client, prefix: 'rl:' }) and pass to RateLimiter
-class RateLimiter {
-  constructor(windowMs = 15 * 60 * 1000, maxRequests = 3) {
-    this.windowMs = windowMs;
-    this.maxRequests = maxRequests;
-    this.requests = new Map(); // Map<IP, Array<timestamps>>
-  }
+// Rate limiting for unauthenticated / abuse-prone endpoints.
+// Uses express-rate-limit's in-memory store — fine for a single instance;
+// swap in a Redis store (rate-limit-redis) for multi-instance deployments.
+import rateLimit from "express-rate-limit";
 
-  middleware() {
-    return (req, res, next) => {
-      const ip = req.ip || req.connection.remoteAddress || 'unknown';
-      const now = Date.now();
+const handler = (_req, res) => {
+  res.status(429).json({
+    success: false,
+    statusCode: 429,
+    message: "Too many requests, please try again later",
+    errors: [],
+  });
+};
 
-      if (!this.requests.has(ip)) {
-        this.requests.set(ip, []);
-      }
+const makeLimiter = (windowMs, max) =>
+  rateLimit({
+    windowMs,
+    max,
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler,
+  });
 
-      const timestamps = this.requests.get(ip);
-      // Remove old timestamps outside the window
-      const validTimestamps = timestamps.filter(t => now - t < this.windowMs);
-      this.requests.set(ip, validTimestamps);
+const FIFTEEN_MINUTES = 15 * 60 * 1000;
 
-      if (validTimestamps.length >= this.maxRequests) {
-        return res.status(429).json({
-          success: false,
-          statusCode: 429,
-          message: 'Too many requests, please try again later',
-        });
-      }
-
-      validTimestamps.push(now);
-      next();
-    };
-  }
-}
-
-// Create limiter instances with appropriate limits
-const registerLimiter = new RateLimiter(15 * 60 * 1000, 3); // 3 per 15 minutes
-const invitePreviewLimiter = new RateLimiter(15 * 60 * 1000, 30); // 30 per 15 minutes
-const inviteAcceptLimiter = new RateLimiter(15 * 60 * 1000, 5); // 5 per 15 minutes
-
-// Export middleware functions
-export const limitRegister = registerLimiter.middleware();
-export const limitInvitePreview = invitePreviewLimiter.middleware();
-export const limitInviteAccept = inviteAcceptLimiter.middleware();
+export const limitRegister = makeLimiter(FIFTEEN_MINUTES, 3);
+export const limitLogin = makeLimiter(FIFTEEN_MINUTES, 10);
+export const limitForgotPassword = makeLimiter(FIFTEEN_MINUTES, 3);
+export const limitResetPassword = makeLimiter(FIFTEEN_MINUTES, 5);
+export const limitResendVerification = makeLimiter(FIFTEEN_MINUTES, 3);
+export const limitInvitePreview = makeLimiter(FIFTEEN_MINUTES, 30);
+export const limitInviteAccept = makeLimiter(FIFTEEN_MINUTES, 5);
