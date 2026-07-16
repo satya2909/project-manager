@@ -12,9 +12,8 @@ const ALWAYS_REQUIRED = [
 const REQUIRED_IN_PRODUCTION = [
   "CORS_ORIGIN",
   "CLIENT_URL",
-  "SMTP_HOST",
-  "SMTP_USER",
   "SMTP_PASS",
+  "SMTP_FROM",
 ];
 
 export function validateEnv() {

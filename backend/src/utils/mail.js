@@ -1,21 +1,10 @@
-import nodemailer from "nodemailer";
-
-// ─── Transporter ──────────────────────────────────────────────────────────────
-// Single transporter instance, reused across all email sends.
-// Config is driven entirely by environment variables so it works with any
-// SMTP provider (Gmail, SendGrid, Mailtrap, Resend, etc.)
-
-const createTransporter = () => {
-  return nodemailer.createTransport({
-    host: process.env.SMTP_HOST,
-    port: Number(process.env.SMTP_PORT) || 587,
-    secure: process.env.SMTP_PORT === "465", // true for port 465, false for 587
-    auth: {
-      user: process.env.SMTP_USER,
-      pass: process.env.SMTP_PASS,
-    },
-  });
-};
+// ─── Resend HTTP API ──────────────────────────────────────────────────────────
+// Sends over HTTPS (port 443) via Resend's API instead of raw SMTP — most PaaS
+// free tiers (Render included) block outbound SMTP ports (25/465/587) entirely,
+// which made every provider (Gmail, Resend SMTP, etc.) time out. HTTPS isn't
+// blocked. Reuses SMTP_PASS as the Resend API key and SMTP_FROM as the sender
+// address so no env var renaming was needed on top of the earlier SMTP setup.
+const RESEND_API_URL = "https://api.resend.com/emails";
 
 // ─── Shared HTML Shell ────────────────────────────────────────────────────────
 // Wraps any email body in a consistent branded template.
@@ -112,20 +101,32 @@ const templates = {
 // doesn't break registration/testing. Throws in production.
 
 const sendEmail = async ({ to, subject, html }) => {
-  const transporter = createTransporter();
   try {
-    const info = await transporter.sendMail({
-      from: `"Project Camp" <${process.env.SMTP_FROM || process.env.SMTP_USER}>`,
-      to,
-      subject,
-      html,
+    const res = await fetch(RESEND_API_URL, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.SMTP_PASS}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from: `Project Camp <${process.env.SMTP_FROM}>`,
+        to,
+        subject,
+        html,
+      }),
     });
-    console.log(`[Email] Sent to ${to} — messageId: ${info.messageId}`);
-    return info;
+
+    if (!res.ok) {
+      throw new Error(`Resend API ${res.status}: ${await res.text()}`);
+    }
+
+    const data = await res.json();
+    console.log(`[Email] Sent to ${to} — id: ${data.id}`);
+    return data;
   } catch (error) {
     console.error(`[Email] Failed to send to ${to}:`, error.message);
     if (process.env.NODE_ENV === "production") throw error;
-    // In dev/test, swallow the error so missing SMTP doesn't break flows
+    // In dev/test, swallow the error so missing email config doesn't break flows
   }
 };
 
