@@ -202,10 +202,15 @@ function InvitesTab() {
     }
     setSending(true);
     try {
-      await inviteService.create({ email: email.trim(), role });
+      const data = await inviteService.create({ email: email.trim(), role });
       setEmail("");
       setRole("member");
-      setSendMsg({ ok: `Invitation sent to ${email.trim()}.`, err: "" });
+      setSendMsg({
+        ok: data?.acceptUrl
+          ? `Invitation created. Email delivery is in test mode — share this link directly: ${data.acceptUrl}`
+          : `Invitation sent to ${email.trim()}.`,
+        err: "",
+      });
       await fetchInvites();
     } catch (e) {
       setSendMsg({ ok: "", err: e?.response?.data?.message || "Failed to send invite." });

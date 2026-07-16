@@ -110,7 +110,23 @@ export const createInvite = asyncHandler(async (req, res) => {
   });
 
   const org = await Organization.findById(organizationId).select("name");
-  await sendOrgInviteEmail(email, org?.name, req.user.username, role, rawToken);
+
+  // SKIP_EMAIL_VERIFICATION doubles as a "testing mode" flag here: email
+  // sending only works for the Resend account's own address until a sending
+  // domain is verified (see mail.js), so a real send would 500 for anyone
+  // else. In test mode, swallow the send failure and hand back the accept
+  // link directly so it can be shared manually. Remove this branch once a
+  // verified sending domain is in place.
+  const isTestMode = process.env.SKIP_EMAIL_VERIFICATION === "true";
+  if (isTestMode) {
+    try {
+      await sendOrgInviteEmail(email, org?.name, req.user.username, role, rawToken);
+    } catch (err) {
+      // Swallowed — acceptUrl below is the fallback delivery method.
+    }
+  } else {
+    await sendOrgInviteEmail(email, org?.name, req.user.username, role, rawToken);
+  }
 
   return res.status(201).json(
     new ApiResponses(
@@ -123,6 +139,9 @@ export const createInvite = asyncHandler(async (req, res) => {
           status: invite.status,
           expiresAt: invite.expiresAt,
         },
+        ...(isTestMode && {
+          acceptUrl: `${process.env.CLIENT_URL}/accept-invite/${rawToken}`,
+        }),
       },
       "Invitation sent",
     ),
