@@ -83,15 +83,22 @@ export const registerUser = asyncHandler(async (req, res) => {
     throw err;
   }
 
-  // Generate and store verification token
-  const { unhashedToken, hashedToken, tokenExpiry } =
-    user.generateTemporaryToken();
-  user.emailVerificationToken = hashedToken;
-  user.emailVerificationExpiry = tokenExpiry;
-  await user.save({ validateBeforeSave: false });
+  // SKIP_EMAIL_VERIFICATION is a temporary testing toggle (email sending isn't
+  // set up for arbitrary recipients yet — see mail.js). Remove once a verified
+  // sending domain is in place.
+  if (process.env.SKIP_EMAIL_VERIFICATION === "true") {
+    user.isEmailVerified = true;
+    await user.save({ validateBeforeSave: false });
+  } else {
+    // Generate and store verification token
+    const { unhashedToken, hashedToken, tokenExpiry } =
+      user.generateTemporaryToken();
+    user.emailVerificationToken = hashedToken;
+    user.emailVerificationExpiry = tokenExpiry;
+    await user.save({ validateBeforeSave: false });
 
-  // Send verification email (non-blocking — failure won't break registration)
-  await sendVerificationEmail(user.email, user.username, unhashedToken);
+    await sendVerificationEmail(user.email, user.username, unhashedToken);
+  }
 
   const safeUser = await User.findById(user._id).select(
     "-password -refreshToken -emailVerificationToken -forgotPasswordToken",
@@ -171,7 +178,10 @@ export const loginUser = asyncHandler(async (req, res) => {
     throw new ApiError(403, "Your account has been deactivated");
   }
 
-  if (!user.isEmailVerified) {
+  if (
+    process.env.SKIP_EMAIL_VERIFICATION !== "true" &&
+    !user.isEmailVerified
+  ) {
     throw new ApiError(
       403,
       "Please verify your email address before logging in",
