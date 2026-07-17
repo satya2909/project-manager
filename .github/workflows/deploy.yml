@@ -1,0 +1,47 @@
+name: Deploy
+
+# Deliberately NOT triggered on every push to main — deploy is decoupled from
+# commit. Fire this manually (Actions tab -> Deploy -> Run workflow) or by
+# pushing a version tag (git tag v1.2.3 && git push origin v1.2.3). Either
+# way, tests must pass before either deploy hook is called.
+on:
+  workflow_dispatch:
+    inputs:
+      reason:
+        description: "Why deploying (shows up in the run log)"
+        required: false
+        default: "manual deploy"
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: npm ci
+      - run: npm test
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger Render deploy
+        run: |
+          if [ -z "${{ secrets.RENDER_DEPLOY_HOOK_URL }}" ]; then
+            echo "::error::RENDER_DEPLOY_HOOK_URL secret not set — see .github/workflows/README-deploy.md"
+            exit 1
+          fi
+          curl -fsS -X POST "${{ secrets.RENDER_DEPLOY_HOOK_URL }}"
+
+      - name: Trigger Vercel deploy
+        run: |
+          if [ -z "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}" ]; then
+            echo "::error::VERCEL_DEPLOY_HOOK_URL secret not set — see .github/workflows/README-deploy.md"
+            exit 1
+          fi
+          curl -fsS -X POST "${{ secrets.VERCEL_DEPLOY_HOOK_URL }}"
