@@ -8,10 +8,35 @@
 // itself and fails loudly (503), not silently, when it's actually invoked
 // without the env vars set.
 
+import Redis from "ioredis";
 import { createInMemoryTokenCache } from "./token-cache.js";
+import { createRedisTokenCache } from "./redis-token-cache.js";
 
-export const tokenCache = createInMemoryTokenCache();
-export const installStateCache = createInMemoryTokenCache();
+// Redis when REDIS_URL is set, in-memory fallback otherwise — same
+// additive/optional posture as the GitHub App config itself: a deployment
+// that hasn't provisioned Redis yet must still start up cleanly, just with
+// the in-memory cache's known limitation (per-process only, cold on
+// restart). One shared client for both caches, distinguished by key prefix
+// (`gh:tok:` vs `gh:install-state:`) — no need for two connections.
+function createSharedCache() {
+  if (!process.env.REDIS_URL) {
+    return { token: createInMemoryTokenCache(), installState: createInMemoryTokenCache() };
+  }
+  const client = new Redis(process.env.REDIS_URL);
+  // Without this listener, ioredis's default behavior on a connection error
+  // is an unhandled 'error' event, which crashes the process — the same
+  // "fail loudly at the point of use, not silently at startup" posture this
+  // module already uses for missing GitHub App env vars applies here too.
+  client.on("error", (err) => {
+    console.error("[redis] connection error:", err.message);
+  });
+  const cache = createRedisTokenCache(client);
+  return { token: cache, installState: cache };
+}
+
+const { token, installState } = createSharedCache();
+export const tokenCache = token;
+export const installStateCache = installState;
 
 export function getGithubAppConfig() {
   return {

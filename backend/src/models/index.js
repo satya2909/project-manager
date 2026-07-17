@@ -8,3 +8,4 @@ export { SubTask } from "./subtask.models.js";
 export { ProjectNote } from "./projectnote.models.js";
 export { Activity } from "./activity.models.js";
 export { GithubInstallation } from "./github-installation.models.js";
+export { AiEvaluationLog } from "./ai-evaluation-log.models.js";

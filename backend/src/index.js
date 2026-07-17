@@ -21,7 +21,15 @@ const { default: app } = await import("./app.js");
 const port = process.env.PORT || 3000;
 
 connectDB()
-  .then(() => {
+  .then(async () => {
+    // In-process DoD worker (Phase 3 — see dod.worker.js's header comment on
+    // why this isn't a separate `npm run worker` process yet: the queue
+    // itself is in-process pending the Redis/BullMQ hosting decision in
+    // TODOS.md). Importing registers its onProcess/onFinalFailure handlers
+    // on the shared dodQueue singleton — must happen after the DB connects,
+    // since the worker writes to Mongo the moment a job runs.
+    await import("./workers/dod.worker.js");
+
     app.listen(port, () => {
       console.log(`Server running at http://localhost:${port}`);
     });

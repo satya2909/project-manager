@@ -13,11 +13,14 @@ const activitySchema = new Schema(
       index: true,
     },
 
-    // Who performed the action
+    // Who performed the action — optional ONLY for system/webhook-triggered
+    // events (e.g. ai_dod_merged_unevidenced), which have no acting human.
     user: {
       type: Schema.Types.ObjectId,
       ref: "User",
-      required: true,
+      required: function () {
+        return this.action !== "ai_dod_merged_unevidenced";
+      },
     },
 
     // Machine-readable action key — one of the ACTION_TYPES constants below
@@ -42,6 +45,11 @@ const activitySchema = new Schema(
         "added_member",
         "updated_role",
         "removed_member",
+        // System-generated (Phase 3, plans/ai-dod-plan.md §6.5) — a PR merged
+        // while its task's AI verification was still 'blocked'. No LLM calls,
+        // zero cost, and arguably more valuable than the gate itself: it's
+        // the exact information asymmetry this feature exists to close.
+        "ai_dod_merged_unevidenced",
       ],
     },
 

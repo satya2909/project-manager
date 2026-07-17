@@ -18,6 +18,7 @@ import taskRouter from "./routes/task.routes.js";
 import noteRouter from "./routes/note.routes.js";
 import activityRouter from "./routes/activity.routes.js";
 import integrationRouter from "./routes/integration.routes.js";
+import webhookRouter from "./routes/webhook.routes.js";
 
 const app = express();
 
@@ -36,7 +37,18 @@ if (process.env.NODE_ENV === "production") {
 app.use(helmet({ contentSecurityPolicy: false }));
 
 // ─── Core Middleware ──────────────────────────────────────────────────────────
-app.use(express.json({ limit: "16kb" }));
+// `verify` captures the raw body bytes alongside normal JSON parsing — the
+// GitHub webhook's signature check needs the exact raw bytes (express.json()
+// destroys them otherwise, a classic detour). Capturing via `verify` avoids
+// restructuring body-parser order for every other route just for one.
+app.use(
+  express.json({
+    limit: "16kb",
+    verify: (req, _res, buf) => {
+      req.rawBody = buf;
+    },
+  }),
+);
 app.use(express.urlencoded({ limit: "16kb", extended: true }));
 app.use(express.static("public"));
 app.use(cookieParser());
@@ -73,6 +85,11 @@ app.use("/api/v1/projects", projectRouter);
 app.use("/api/v1/tasks", taskRouter);
 app.use("/api/v1/notes", noteRouter);
 app.use("/api/v1/activity", activityRouter);
+// Webhook mounted first — public, no verifyJWT (see webhook.routes.js).
+// Distinct path (`/github/webhook`) from integrationRouter's authenticated
+// routes (`/github`, `/github/install-url`, `/github/callback`), so mount
+// order here doesn't affect routing, only readability.
+app.use("/api/v1/integrations", webhookRouter);
 app.use("/api/v1/integrations", integrationRouter);
 
 app.get("/api/v1/healthcheck", (_req, res) => {

@@ -103,6 +103,42 @@ const taskSchema = new Schema(
       },
     },
 
+    // ─── AI DoD verification fields (Phase 3, plans/ai-dod-plan.md) ──────────
+    // Populated by the first matching webhook, or set manually via the
+    // "Verify now" path (Phase 4's no-PR-gap fallback).
+    githubBranch: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    githubPrUrl: {
+      type: String,
+      default: null,
+    },
+
+    // NOT a boolean — a boolean can't express pending/blocked/clear/none as
+    // distinct UI states (plans/PRD_v2.md §5.5). `none` = never evaluated;
+    // `pending` = a run is enqueued or in flight.
+    aiLockStatus: {
+      type: String,
+      enum: ["none", "pending", "blocked", "clear"],
+      default: "none",
+    },
+
+    // Monotonic, incremented on ENQUEUE (not on completion — completion
+    // order isn't issue order under unpredictable LLM latency). The
+    // conditional write on persist (lastAppliedSeq: {$lt: seq}) is what
+    // prevents a stale REJECTED landing after a fresh APPROVED — same
+    // failure shape as the Kanban race condition (plans/PRD_v2.md §5.6).
+    evaluationSeq: {
+      type: Number,
+      default: 0,
+    },
+    lastAppliedSeq: {
+      type: Number,
+      default: 0,
+    },
+
     // Predecessor tasks (this task is blocked by these). Same-project validity
     // is enforced in the controller, not here — see task.controllers.js.
     dependsOn: {
