@@ -5,6 +5,7 @@
 // (DESIGN.md §7 / REDESIGN-PLAN.md Phase 1)
 // ═══════════════════════════════════════════════════════════════════════════
 
+import { useState } from "react";
 import { TriangleAlert, Clock } from "lucide-react";
 import { getDueDateStatus } from "../../utils/index.js";
 
@@ -71,6 +72,52 @@ export function DueDateBadge({ task }) {
       <Clock size={11} strokeWidth={2.25} />
       Due soon
     </Badge>
+  );
+}
+
+// ── TaskKeyBadge ─────────────────────────────────────────────────────────────
+// Computed task key (`CAMP-104`) — genuinely data-like content, so mono per
+// DESIGN.md §4. Click-to-copy with a --signal flash on success (one of the
+// 3-4 places phosphor green is worth spending, per DESIGN.md §3). Falls back
+// to nothing (not a placeholder) on legacy tasks with no key yet — a project
+// created before Phase 1's migration, or mid-migration, has no keyPrefix to
+// show, and a fake/guessed key would be worse than absence.
+export function TaskKeyBadge({ taskKey, size = "sm" }) {
+  const [copied, setCopied] = useState(false);
+  if (!taskKey) return null;
+
+  const copy = async (e) => {
+    e.stopPropagation();
+    try {
+      await navigator.clipboard.writeText(taskKey);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch {
+      // Clipboard API can be unavailable (non-secure context, permission
+      // denied) — fail silently rather than surface a broken copy button.
+    }
+  };
+
+  return (
+    <button
+      type="button"
+      onClick={copy}
+      title={copied ? "Copied!" : `Copy ${taskKey}`}
+      style={{
+        fontFamily: "var(--font-mono)",
+        fontSize: size === "sm" ? "0.68rem" : "0.75rem",
+        letterSpacing: "0.02em",
+        color: copied ? "var(--signal)" : "var(--text-dim)",
+        background: "none",
+        border: "none",
+        padding: 0,
+        cursor: "pointer",
+        transition: "color .2s var(--ease)",
+        flexShrink: 0,
+      }}
+    >
+      {taskKey}
+    </button>
   );
 }
 
@@ -285,6 +332,7 @@ export default {
   Card,
   Badge,
   DueDateBadge,
+  TaskKeyBadge,
   Label,
   Input,
   Field,

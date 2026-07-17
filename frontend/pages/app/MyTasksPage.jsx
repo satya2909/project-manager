@@ -5,7 +5,7 @@ import { useAuth } from "../../context/authcontext.jsx";
 import { projectsApi } from "../../api/index.js";
 import TaskDetailDrawer from "../../components/ui/TaskDetailDrawer.jsx";
 import TaskTable from "../../components/ui/TaskTable.jsx";
-import { Button, EmptyState, Skeleton, SectionLabel } from "../../components/ui/primitive.jsx";
+import { Button, EmptyState, Skeleton, SectionLabel, TaskKeyBadge } from "../../components/ui/primitive.jsx";
 import { fadeUp, stagger, EASE } from "../../motion/tokens";
 
 const STATUS = [
@@ -169,7 +169,11 @@ function TaskRow({ task, onStatus, onOpen }) {
       onClick={() => onOpen(task)}
     >
       <div style={M.rowMain}>
-        <span style={M.rowId}>#{task._id?.slice(-4).toUpperCase()}</span>
+        {task.taskKey ? (
+          <TaskKeyBadge taskKey={task.taskKey} />
+        ) : (
+          <span style={M.rowId}>#{task._id?.slice(-4).toUpperCase()}</span>
+        )}
         <span style={M.rowTitle}>{task.title}</span>
       </div>
       <div style={M.rowRight}>

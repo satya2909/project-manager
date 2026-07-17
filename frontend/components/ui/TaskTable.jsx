@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Avatar, EmptyState, DueDateBadge } from "./primitive.jsx";
+import { Avatar, EmptyState, DueDateBadge, TaskKeyBadge } from "./primitive.jsx";
 import { fadeUp, stagger, EASE } from "../../motion/tokens";
 
 const STATUS = {
@@ -17,7 +17,7 @@ const assigneeName = (t) => {
 const COLUMNS = [
   { key: "title", label: "Task name", grow: true },
   { key: "project", label: "Project" },
-  { key: "taskId", label: "Task ID" },
+  { key: "taskId", label: "Key" },
   { key: "assignee", label: "Assigned to" },
   { key: "status", label: "Status" },
 ];
@@ -25,7 +25,9 @@ const COLUMNS = [
 const COMPARATORS = {
   title: (t) => t.title?.toLowerCase() || "",
   project: (t) => t.project?.name?.toLowerCase() || "￿",
-  taskId: (t) => t._id?.slice(-4).toUpperCase() || "",
+  // Sort by the numeric part when a real key exists (CAMP-9 before CAMP-10,
+  // not string-sorted "10" before "9"); legacy tasks without one sort last.
+  taskId: (t) => (t.taskKey ? Number(t.taskKey.split("-").pop()) : Infinity),
   assignee: (t) => assigneeName(t)?.toLowerCase() || "￿",
   status: (t) => STATUS[t.status]?.rank ?? 99,
 };
@@ -126,7 +128,11 @@ export default function TaskTable({ tasks = [], showProject = false, onTaskClick
                   <td style={S.td}>{task.project?.name || "—"}</td>
                 )}
                 <td style={{ ...S.td, ...S.tdMono }}>
-                  #{task._id?.slice(-4).toUpperCase()}
+                  {task.taskKey ? (
+                    <TaskKeyBadge taskKey={task.taskKey} />
+                  ) : (
+                    `#${task._id?.slice(-4).toUpperCase()}`
+                  )}
                 </td>
                 <td style={S.td}>
                   <div style={S.assignee}>

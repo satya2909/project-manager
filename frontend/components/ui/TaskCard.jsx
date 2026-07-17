@@ -4,7 +4,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { motion } from "framer-motion";
 import { useAuth } from "../../context/authcontext.jsx";
 import { EASE, EASE_OUT } from "../../motion/tokens";
-import { DueDateBadge } from "./primitive.jsx";
+import { DueDateBadge, TaskKeyBadge } from "./primitive.jsx";
 
 const PRIORITY = {
   high: { label: "HIGH", color: "var(--danger)", soft: "var(--danger-soft)" },
@@ -119,6 +119,7 @@ export default function TaskCard({ task, onClick, onToggleComplete, overlay = fa
         </div>
 
         <div style={S.foot}>
+          <TaskKeyBadge taskKey={task.taskKey} />
           <span style={{ ...S.tag, background: priority.soft, color: priority.color }}>
             {priority.label}
           </span>

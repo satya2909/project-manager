@@ -7,8 +7,9 @@ import CreateTaskModal from "../../components/ui/CreateTaskModal.jsx";
 import TaskDetailDrawer from "../../components/ui/TaskDetailDrawer.jsx";
 import { useTasks, useMembers, useNotes } from "../../hooks/index.js";
 import { useAuth } from "../../context/authcontext.jsx";
+import { projectsApi, parseApiError } from "../../api/index.js";
 import MembersPanel from "../../components/ui/MembersPanel.jsx";
-import { Button } from "../../components/ui/primitive.jsx";
+import { Button, Label, InlineError, InlineSuccess } from "../../components/ui/primitive.jsx";
 
 // ── task view preference (per project, localStorage) ───────────────────────────
 // Wrapped in try/catch: private browsing / full storage must never crash the
@@ -166,6 +167,104 @@ function MembersTab({ projectId }) {
       style={PS.tabContent}
     >
       <MembersPanel projectId={projectId} />
+    </motion.div>
+  );
+}
+
+// ── settings tab ──────────────────────────────────────────────────────────────
+function SettingsTab({ project, onProjectUpdate }) {
+  const [name, setName] = useState(project.name);
+  const [description, setDescription] = useState(project.description || "");
+  const [keyPrefix, setKeyPrefix] = useState(project.keyPrefix || "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
+  const [success, setSuccess] = useState(null);
+
+  const prefixChanged = keyPrefix.trim().toUpperCase() !== project.keyPrefix;
+  const prefixValid = /^[A-Z]{2,6}$/.test(keyPrefix.trim().toUpperCase());
+  const canSubmit =
+    name.trim().length >= 3 && (!prefixChanged || prefixValid) && !saving;
+
+  const handleSave = async () => {
+    setError(null);
+    setSuccess(null);
+    setSaving(true);
+    try {
+      const { data } = await projectsApi.update(project._id, {
+        name: name.trim(),
+        description: description.trim(),
+        keyPrefix: keyPrefix.trim().toUpperCase(),
+      });
+      const updated = data?.data?.project;
+      onProjectUpdate?.(updated);
+      setSuccess("Project updated");
+      setTimeout(() => setSuccess(null), 2400);
+    } catch (e) {
+      setError(parseApiError(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.2 }}
+      style={{ ...PS.settingsTabContent, maxWidth: 480 }}
+    >
+      <div style={PS.settingsField}>
+        <Label>Project name</Label>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="input-field"
+          maxLength={100}
+        />
+      </div>
+
+      <div style={PS.settingsField}>
+        <Label>Description</Label>
+        <textarea
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          className="input-field textarea-field"
+          rows={3}
+          maxLength={500}
+        />
+      </div>
+
+      <div style={PS.settingsField}>
+        <Label>Key prefix</Label>
+        <input
+          value={keyPrefix}
+          onChange={(e) => setKeyPrefix(e.target.value.toUpperCase())}
+          className="input-field"
+          style={{ fontFamily: "var(--font-mono)", maxWidth: 140, textTransform: "uppercase" }}
+          maxLength={6}
+        />
+        {prefixChanged && (
+          <p style={PS.settingsPrefixWarning}>
+            {prefixValid ? (
+              <>
+                Renaming to <strong>{keyPrefix.trim().toUpperCase()}</strong> will show every task
+                as <strong>{keyPrefix.trim().toUpperCase()}-1</strong> … immediately. Existing{" "}
+                <strong>{project.keyPrefix}-*</strong> branches and PRs will keep working.
+              </>
+            ) : (
+              "Key prefix must be 2-6 letters."
+            )}
+          </p>
+        )}
+      </div>
+
+      {error && <InlineError message={error} />}
+      {success && <InlineSuccess message={success} />}
+
+      <Button onClick={handleSave} disabled={!canSubmit} style={{ alignSelf: "flex-start" }}>
+        {saving ? "Saving…" : "Save changes"}
+      </Button>
     </motion.div>
   );
 }
@@ -587,7 +686,7 @@ function TasksTab({ project, members }) {
 }
 
 // ── main page ─────────────────────────────────────────────────────────────────
-export default function ProjectPage({ project, onBack }) {
+export default function ProjectPage({ project, onBack, onProjectUpdate }) {
   const { user, isOrgOwner, isOrgAdmin } = useAuth();
   const [activeTab, setActiveTab] = useState("tasks");
   const { members } = useMembers(project._id);
@@ -601,11 +700,19 @@ export default function ProjectPage({ project, onBack }) {
   const canAdmin = myRole === "admin";
   // org owner/admin manage every project in their org (may not be a member here)
   const myOrgRole = isOrgOwner ? "owner" : isOrgAdmin ? "admin" : null;
+  // Settings needs the full canManage check (project admin OR org owner/admin)
+  // — canAdmin alone is the pre-existing gap tracked in TODOS.md (an org
+  // owner who isn't a project member can't manage). Not fixing that bug's
+  // other occurrences in this file (Kanban/Table create gating) here — that's
+  // the separate, focused fix TODOS.md already scopes; this is just not
+  // propagating it into a brand-new tab.
+  const canManageSettings = canAdmin || myOrgRole === "owner" || myOrgRole === "admin";
 
   const TABS = [
     { id: "tasks", label: "Tasks" },
     { id: "members", label: "Members" },
     { id: "notes", label: "Notes" },
+    ...(canManageSettings ? [{ id: "settings", label: "Settings" }] : []),
   ];
 
   return (
@@ -655,6 +762,9 @@ export default function ProjectPage({ project, onBack }) {
           )}
           {activeTab === "notes" && (
             <NotesTab key="notes" projectId={project._id} canAdmin={canAdmin} />
+          )}
+          {activeTab === "settings" && canManageSettings && (
+            <SettingsTab key="settings" project={project} onProjectUpdate={onProjectUpdate} />
           )}
         </AnimatePresence>
       </div>
@@ -741,6 +851,18 @@ const PS = {
   tabRest: { flex: 1 },
   contentArea: {},
   tabContent: {},
+
+  // settings tab — dedicated layout, not sharing tabContent's (empty, by
+  // design) style so other tabs' existing internal layouts aren't affected.
+  settingsTabContent: { display: "flex", flexDirection: "column", gap: 16 },
+  settingsField: { display: "flex", flexDirection: "column", gap: 6 },
+  settingsPrefixWarning: {
+    fontSize: "0.76rem",
+    lineHeight: 1.5,
+    color: "var(--text-dim)",
+    margin: "6px 0 0",
+    maxWidth: 400,
+  },
 
   // notes toolbar
   notesToolbar: { display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, paddingBottom: 10, borderBottom: "1px solid var(--border)" },

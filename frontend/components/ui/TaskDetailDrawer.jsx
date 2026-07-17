@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Drawer } from "./Modal.jsx";
-import { Button, Label } from "./primitive.jsx";
+import { Button, Label, TaskKeyBadge } from "./primitive.jsx";
 import { EASE, EASE_OUT } from "../../motion/tokens";
 import taskService from "../../services/task.service.js";
 
@@ -265,9 +265,16 @@ export default function TaskDetailDrawer({
       {/* Header */}
       <div style={D.header}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-          <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.7rem", color: "var(--text-dim)" }}>
-            #{localTask._id?.slice(-6).toUpperCase()}
-          </span>
+          {localTask.taskKey ? (
+            <TaskKeyBadge taskKey={localTask.taskKey} size="md" />
+          ) : (
+            // Legacy fallback — a task created before the Phase 1 migration
+            // ran has no keyPrefix yet. Not click-to-copy: a raw ID fragment
+            // isn't the stable, human-typable identity taskKey is for.
+            <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.7rem", color: "var(--text-dim)" }}>
+              #{localTask._id?.slice(-6).toUpperCase()}
+            </span>
+          )}
           <AnimatePresence>
             {saving && (
               <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ fontFamily: "var(--font-mono)", fontSize: "0.62rem", color: "var(--brass)" }}>

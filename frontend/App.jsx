@@ -245,7 +245,13 @@ function AppRouter() {
   const renderPage = () => {
     if (activePage === "project" && activeProject) {
       return (
-        <ProjectPage project={activeProject} onBack={handleBackToDashboard} />
+        <ProjectPage
+          project={activeProject}
+          onBack={handleBackToDashboard}
+          onProjectUpdate={(patch) =>
+            setActiveProject((p) => (p ? { ...p, ...patch } : p))
+          }
+        />
       );
     }
     switch (activePage) {
