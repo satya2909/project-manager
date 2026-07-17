@@ -7,3 +7,4 @@ export { Task } from "./task.models.js";
 export { SubTask } from "./subtask.models.js";
 export { ProjectNote } from "./projectnote.models.js";
 export { Activity } from "./activity.models.js";
+export { GithubInstallation } from "./github-installation.models.js";

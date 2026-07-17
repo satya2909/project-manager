@@ -1,4 +1,4 @@
-import { Project, User, Activity } from "../models/index.js";
+import { Project, User, Activity, GithubInstallation } from "../models/index.js";
 import { ApiError } from "../utils/api-error.js";
 import { ApiResponses } from "../utils/api-responses.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -173,6 +173,64 @@ export const updateProject = asyncHandler(async (req, res) => {
     .json(
       new ApiResponses(200, { project: updatedProject }, "Project updated"),
     );
+});
+
+// ─── PUT /projects/:projectId/github ────────────────────────────────────────────
+// 1:1 repo<->project binding (plans/ai-dod-plan.md §6.3). The repo must
+// belong to the org's own installation — never a cross-org lookup, and never
+// trust a client-supplied repo name/id without checking it against the
+// installation's own repo list.
+export const bindGithubRepo = asyncHandler(async (req, res) => {
+  const { githubId } = req.body;
+
+  const installation = await GithubInstallation.findOne({
+    organization: req.user.organization,
+  }).lean();
+  if (!installation) {
+    throw new ApiError(404, "Connect a GitHub App installation first");
+  }
+
+  const repo = installation.repositories.find((r) => r.githubId === githubId);
+  if (!repo) {
+    throw new ApiError(
+      400,
+      "That repository is not available in your organization's GitHub App installation",
+    );
+  }
+
+  let updatedProject;
+  try {
+    updatedProject = await Project.findByIdAndUpdate(
+      req.project._id,
+      { $set: { githubRepo: repo } },
+      { new: true, runValidators: true },
+    );
+  } catch (err) {
+    if (err.code === 11000) {
+      throw new ApiError(
+        409,
+        "That repository is already bound to a different project",
+      );
+    }
+    throw err;
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponses(200, { project: updatedProject }, "Repository bound"));
+});
+
+// ─── DELETE /projects/:projectId/github ─────────────────────────────────────────
+export const unbindGithubRepo = asyncHandler(async (req, res) => {
+  const updatedProject = await Project.findByIdAndUpdate(
+    req.project._id,
+    { $unset: { githubRepo: "" } },
+    { new: true },
+  );
+
+  return res
+    .status(200)
+    .json(new ApiResponses(200, { project: updatedProject }, "Repository unbound"));
 });
 
 // ─── DELETE /projects/:projectId ──────────────────────────────────────────────

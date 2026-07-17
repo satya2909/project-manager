@@ -76,6 +76,21 @@ const projectSchema = new Schema(
       default: 0,
     },
 
+    // 1:1 repo<->project binding, decided (plans/ai-dod-plan.md §6.3) —
+    // deletes prefix-as-disambiguator, path-scoped routing, and webhook
+    // fan-out. Must belong to the org's GithubInstallation at bind time
+    // (checked in the controller, not here — this schema doesn't know about
+    // installations).
+    githubRepo: {
+      type: {
+        fullName: { type: String, required: true },
+        githubId: { type: Number, required: true },
+        defaultBranch: { type: String, required: true },
+      },
+      default: null,
+      _id: false, // single embedded object, not an array — no separate _id needed
+    },
+
     // The user who created the project; automatically becomes admin
     createdBy: {
       type: Schema.Types.ObjectId,
@@ -141,6 +156,15 @@ projectSchema.index(
 projectSchema.index(
   { organization: 1, prefixAliases: 1 },
   { unique: true, partialFilterExpression: { "prefixAliases.0": { $exists: true } } },
+);
+
+// 1:1 repo<->project, scoped per org (plans/ai-dod-plan.md §6.3). Partial,
+// same reasoning as keyPrefix/prefixAliases above — githubRepo defaults to
+// null, and a plain unique index would collide every unbound project in an
+// org on the same null entry.
+projectSchema.index(
+  { organization: 1, "githubRepo.githubId": 1 },
+  { unique: true, partialFilterExpression: { "githubRepo.githubId": { $exists: true } } },
 );
 
 // ─── Virtuals ─────────────────────────────────────────────────────────────────

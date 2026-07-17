@@ -7,7 +7,7 @@ import CreateTaskModal from "../../components/ui/CreateTaskModal.jsx";
 import TaskDetailDrawer from "../../components/ui/TaskDetailDrawer.jsx";
 import { useTasks, useMembers, useNotes } from "../../hooks/index.js";
 import { useAuth } from "../../context/authcontext.jsx";
-import { projectsApi, parseApiError } from "../../api/index.js";
+import { projectsApi, integrationsApi, parseApiError } from "../../api/index.js";
 import MembersPanel from "../../components/ui/MembersPanel.jsx";
 import { Button, Label, InlineError, InlineSuccess } from "../../components/ui/primitive.jsx";
 
@@ -171,6 +171,104 @@ function MembersTab({ projectId }) {
   );
 }
 
+// ── repo picker (GitHub binding) ──────────────────────────────────────────────
+function RepoPicker({ project, onProjectUpdate }) {
+  const [status, setStatus] = useState(null); // { connected, repositories }
+  const [loading, setLoading] = useState(true);
+  const [selected, setSelected] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await integrationsApi.status();
+        setStatus(data?.data ?? null);
+      } catch {
+        setStatus(null);
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  const handleBind = async () => {
+    if (!selected) return;
+    setError(null);
+    setBusy(true);
+    try {
+      const { data } = await projectsApi.bindGithub(project._id, Number(selected));
+      onProjectUpdate?.(data?.data?.project);
+    } catch (e) {
+      setError(parseApiError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleUnbind = async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      const { data } = await projectsApi.unbindGithub(project._id);
+      onProjectUpdate?.(data?.data?.project);
+    } catch (e) {
+      setError(parseApiError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading) return null;
+
+  if (!status?.connected) {
+    return (
+      <p style={{ fontSize: "0.8rem", color: "var(--text-dim)" }}>
+        GitHub isn't connected for this organization yet. An org owner can connect it from Organization →
+        Integrations.
+      </p>
+    );
+  }
+
+  if (project.githubRepo) {
+    return (
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.8rem", color: "var(--text)" }}>
+          {project.githubRepo.fullName}
+        </span>
+        {error && <InlineError message={error} />}
+        <Button variant="ghost" onClick={handleUnbind} disabled={busy} style={{ alignSelf: "flex-start" }}>
+          {busy ? "Unbinding…" : "Unbind"}
+        </Button>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", gap: 8 }}>
+        <select
+          value={selected}
+          onChange={(e) => setSelected(e.target.value)}
+          className="input-field"
+          style={{ maxWidth: 280 }}
+        >
+          <option value="">Select a repository…</option>
+          {status.repositories?.map((r) => (
+            <option key={r.githubId} value={r.githubId}>
+              {r.fullName}
+            </option>
+          ))}
+        </select>
+        <Button onClick={handleBind} disabled={!selected || busy}>
+          {busy ? "Binding…" : "Bind"}
+        </Button>
+      </div>
+      {error && <InlineError message={error} />}
+    </div>
+  );
+}
+
 // ── settings tab ──────────────────────────────────────────────────────────────
 function SettingsTab({ project, onProjectUpdate }) {
   const [name, setName] = useState(project.name);
@@ -265,6 +363,11 @@ function SettingsTab({ project, onProjectUpdate }) {
       <Button onClick={handleSave} disabled={!canSubmit} style={{ alignSelf: "flex-start" }}>
         {saving ? "Saving…" : "Save changes"}
       </Button>
+
+      <div style={{ ...PS.settingsField, marginTop: 8, paddingTop: 20, borderTop: "1px solid var(--border)" }}>
+        <Label>GitHub repository</Label>
+        <RepoPicker project={project} onProjectUpdate={onProjectUpdate} />
+      </div>
     </motion.div>
   );
 }

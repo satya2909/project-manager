@@ -31,6 +31,22 @@ api.interceptors.request.use(
 let isRefreshing = false;
 let failedQueue = [];
 
+// Public auth endpoints where a 401 is a legitimate final answer (wrong
+// password, unverified email, etc.), not a sign the access token expired.
+// Found via a live bug: a failed login attempt returned 401, the interceptor
+// tried a silent refresh anyway (no session exists yet — nothing to refresh),
+// and the refresh failure's "Invalid or expired refresh token" message
+// overwrote the real "Invalid credentials" error before it reached the user.
+const NO_REFRESH_RETRY_PATHS = [
+  "/auth/refresh-token",
+  "/auth/login",
+  "/auth/register",
+  "/auth/forgot-password",
+  "/auth/reset-password",
+  "/auth/verify-email",
+  "/auth/resend-email-verification",
+];
+
 const processQueue = (error, token = null) => {
   failedQueue.forEach((prom) => {
     if (error) prom.reject(error);
@@ -47,7 +63,7 @@ api.interceptors.response.use(
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&
-      !originalRequest.url?.includes("/auth/refresh-token")
+      !NO_REFRESH_RETRY_PATHS.some((path) => originalRequest.url?.includes(path))
     ) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
@@ -113,6 +129,13 @@ export const orgApi = {
     api.delete(`/organizations/members/${userId}`),
 };
 
+// ─── INTEGRATIONS (GitHub App) ────────────────────────────────────────────────
+export const integrationsApi = {
+  status: () => api.get("/integrations/github"),
+  installUrl: () => api.get("/integrations/github/install-url"),
+  disconnect: () => api.delete("/integrations/github"),
+};
+
 // ─── INVITES ──────────────────────────────────────────────────────────────────
 export const inviteApi = {
   // Public — preview an invite by its raw token (for the accept page).
@@ -134,6 +157,9 @@ export const projectsApi = {
   get: (projectId) => api.get(`/projects/${projectId}`),
   update: (projectId, data) => api.put(`/projects/${projectId}`, data),
   delete: (projectId) => api.delete(`/projects/${projectId}`),
+  bindGithub: (projectId, githubId) =>
+    api.put(`/projects/${projectId}/github`, { githubId }),
+  unbindGithub: (projectId) => api.delete(`/projects/${projectId}/github`),
   listMembers: (projectId) => api.get(`/projects/${projectId}/members`),
   addMember: (projectId, data) =>
     api.post(`/projects/${projectId}/members`, data),

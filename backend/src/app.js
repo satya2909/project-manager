@@ -17,6 +17,7 @@ import projectRouter from "./routes/project.routes.js";
 import taskRouter from "./routes/task.routes.js";
 import noteRouter from "./routes/note.routes.js";
 import activityRouter from "./routes/activity.routes.js";
+import integrationRouter from "./routes/integration.routes.js";
 
 const app = express();
 
@@ -72,6 +73,7 @@ app.use("/api/v1/projects", projectRouter);
 app.use("/api/v1/tasks", taskRouter);
 app.use("/api/v1/notes", noteRouter);
 app.use("/api/v1/activity", activityRouter);
+app.use("/api/v1/integrations", integrationRouter);
 
 app.get("/api/v1/healthcheck", (_req, res) => {
   res.status(200).json({

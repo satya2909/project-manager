@@ -10,6 +10,8 @@ import {
   addProjectMember,
   updateMemberRole,
   removeProjectMember,
+  bindGithubRepo,
+  unbindGithubRepo,
 } from "../controllers/project.controllers.js";
 import {
   verifyJWT,
@@ -92,6 +94,25 @@ router
     updateProject,
   )
   .delete(attachProject, checkProjectRole(ProjectRolesEnum.ADMIN), deleteProject);
+
+// ─── /projects/:projectId/github ──────────────────────────────────────────────
+router
+  .route("/:projectId/github")
+  .put(
+    attachProject,
+    checkProjectRole(ProjectRolesEnum.ADMIN),
+    [
+      body("githubId")
+        .notEmpty()
+        .withMessage("githubId is required")
+        .isInt()
+        .withMessage("githubId must be a number")
+        .toInt(),
+    ],
+    validate,
+    bindGithubRepo,
+  )
+  .delete(attachProject, checkProjectRole(ProjectRolesEnum.ADMIN), unbindGithubRepo);
 
 // ─── /projects/:projectId/members ─────────────────────────────────────────────
 

@@ -1,17 +1,114 @@
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Building2, Users, Mail, Trash2, Send, Upload, Download } from "lucide-react";
+import { Building2, Users, Mail, Trash2, Send, Upload, Download, GitBranch } from "lucide-react";
 import { useAuth } from "../../context/authcontext.jsx";
 import organizationService from "../../services/organization.service.js";
 import inviteService from "../../services/invite.service.js";
+import { integrationsApi, parseApiError } from "../../api/index.js";
 import OrgMembersPanel from "../../components/ui/OrgMembersPanel.jsx";
-import { InlineError, InlineSuccess, Spinner } from "../../components/ui/primitive.jsx";
+import { InlineError, InlineSuccess, Spinner, Button } from "../../components/ui/primitive.jsx";
 
 const TABS = [
   { id: "settings", label: "Settings", icon: Building2 },
   { id: "members", label: "Members", icon: Users },
   { id: "invites", label: "Invites", icon: Mail },
+  { id: "integrations", label: "Integrations", icon: GitBranch },
 ];
+
+// ─── INTEGRATIONS TAB ─────────────────────────────────────────────────────────
+function IntegrationsTab() {
+  const { isOrgOwner } = useAuth();
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  const fetchStatus = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data } = await integrationsApi.status();
+      setStatus(data?.data ?? null);
+    } catch (e) {
+      setError(parseApiError(e));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchStatus();
+  }, [fetchStatus]);
+
+  const handleConnect = async () => {
+    setError(null);
+    setBusy(true);
+    try {
+      const { data } = await integrationsApi.installUrl();
+      window.location.href = data?.data?.url;
+    } catch (e) {
+      setError(parseApiError(e));
+      setBusy(false);
+    }
+  };
+
+  const handleDisconnect = async () => {
+    if (!window.confirm("Disconnect GitHub? Every project's repo binding in this org will be cleared.")) return;
+    setError(null);
+    setBusy(true);
+    try {
+      await integrationsApi.disconnect();
+      await fetchStatus();
+    } catch (e) {
+      setError(parseApiError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (loading) return <div style={S.center}><Spinner /></div>;
+
+  return (
+    <div style={{ maxWidth: 640, padding: "20px 4px" }}>
+      <div style={S.sectionLabel}>
+        <span>GITHUB APP</span>
+        <div style={S.rule} />
+      </div>
+
+      {error && <div style={{ marginBottom: 12 }}><InlineError message={error} /></div>}
+
+      {status?.connected ? (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <p style={{ fontSize: "0.86rem", color: "var(--text)" }}>
+            Connected as <strong>{status.installation?.accountLogin}</strong>.{" "}
+            {status.repositories?.length ?? 0} repositor{status.repositories?.length === 1 ? "y" : "ies"} available —
+            bind one to a project from that project's Settings tab.
+          </p>
+          {isOrgOwner && (
+            <Button variant="danger" onClick={handleDisconnect} disabled={busy} style={{ alignSelf: "flex-start" }}>
+              {busy ? "Disconnecting…" : "Disconnect"}
+            </Button>
+          )}
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <p style={{ fontSize: "0.86rem", color: "var(--text-dim)" }}>
+            Not connected. Connecting lets project admins bind a repository so pushes and pull requests can be
+            evaluated against task requirements.
+          </p>
+          {isOrgOwner ? (
+            <Button onClick={handleConnect} disabled={busy} style={{ alignSelf: "flex-start" }}>
+              {busy ? "Redirecting…" : "Connect GitHub"}
+            </Button>
+          ) : (
+            <p style={{ fontSize: "0.8rem", color: "var(--text-dim)", fontStyle: "italic" }}>
+              Only the org owner can connect GitHub.
+            </p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─── SETTINGS TAB ─────────────────────────────────────────────────────────────
 function SettingsTab({ org, onOrgUpdated }) {
@@ -480,6 +577,8 @@ export default function OrganizationPage() {
               <SettingsTab org={org} onOrgUpdated={(o) => o && setOrg(o)} />
             ) : tab === "members" ? (
               <OrgMembersPanel />
+            ) : tab === "integrations" ? (
+              <IntegrationsTab />
             ) : (
               <InvitesTab />
             )}
