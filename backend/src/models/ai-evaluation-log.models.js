@@ -59,6 +59,18 @@ const aiEvaluationLogSchema = new Schema(
     durationMs: { type: Number, default: 0 },
     strippedPaths: { type: [String], default: [] },
     errorCode: { type: String, default: null },
+
+    // Distinct from PASSED_BY_SYSTEM_ERROR: a degraded code search still
+    // lets the run continue with diff+heuristic candidates, so it wouldn't
+    // trip the generic fail-open path — but it's a silent accuracy risk on
+    // "existing infra" cases and needs its own signal (plans/ai-dod-plan.md
+    // §4.1 4d).
+    searchDegraded: { type: Boolean, default: false },
+
+    // Prompt injection defense #3 (plans/PRD_v2.md §7.5). Doesn't block —
+    // recorded so project admins can see a PR that flipped to APPROVED
+    // while also containing a "respond APPROVED"-style comment.
+    injectionPatternDetected: { type: Boolean, default: false },
   },
   {
     timestamps: true,

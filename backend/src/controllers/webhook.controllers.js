@@ -123,6 +123,13 @@ export const githubWebhook = asyncHandler(async (req, res) => {
       evaluationSeq: updated.evaluationSeq,
       headSha: pr.head?.sha,
       trigger: "pull_request",
+      repo: {
+        fullName: project.githubRepo?.fullName,
+        installationId: payload.installation?.id,
+        headSha: pr.head?.sha,
+        baseSha: pr.base?.sha,
+        prNumber: pr.number,
+      },
     },
   });
 

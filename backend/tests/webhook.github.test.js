@@ -270,7 +270,19 @@ describe("POST /api/v1/integrations/github/webhook", () => {
     expect(dodQueue.hasWaiting(taskB._id.toString())).toBe(true);
   });
 
-  it("end to end: stub worker resolves the enqueued job to APPROVED after the debounce delay", async () => {
+  it("end to end: fails open through the real pipeline when GitHub App / LLM credentials aren't configured", async () => {
+    // This test environment has no GITHUB_APP_ID/PRIVATE_KEY or
+    // ANTHROPIC_API_KEY configured (deliberately — see backend/tests/setup.js),
+    // and network access is stubbed out entirely below. That's the point:
+    // a real-world equivalent is "GitHub/the LLM provider is unreachable",
+    // and plans/PRD_v2.md §7.3's invariant — no task is ever locked by an
+    // infrastructure failure — must hold through the full HTTP -> queue ->
+    // pipeline path, not just in each node's own unit test.
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => {
+      throw new Error("network disabled in test");
+    };
+
     const { task } = await setup();
     await sendWebhook({
       event: "pull_request",
@@ -282,10 +294,12 @@ describe("POST /api/v1/integrations/github/webhook", () => {
     // past it for the real (non-fake-timer) queue to actually run the job.
     await new Promise((resolve) => setTimeout(resolve, 600));
 
+    globalThis.fetch = originalFetch;
+
     const refreshed = await Task.findById(task._id);
     expect(refreshed.aiLockStatus).toBe("clear");
     const log = await AiEvaluationLog.findOne({ task: task._id });
-    expect(log.evaluation).toBe("APPROVED");
-    expect(log.model).toBe("stub");
+    expect(log.status).toBe("PASSED_BY_SYSTEM_ERROR");
+    expect(log.errorCode).toBe("LLM_TIMEOUT");
   });
 });

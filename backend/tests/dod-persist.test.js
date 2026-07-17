@@ -170,4 +170,75 @@ describe("persistEvaluation", () => {
     expect(refreshed.lastAppliedSeq).toBe(3);
     expect(refreshed.aiLockStatus).toBe("clear"); // seq 3's APPROVED verdict, untouched by the later-arriving stale ones
   });
+
+  it("SKIPPED verdict (e.g. NO_ACTIVE_REQUIREMENTS) leaves aiLockStatus unchanged but still bumps lastAppliedSeq", async () => {
+    const { org, project, task } = await createOrgProjectTask();
+
+    const { applied } = await persistEvaluation({
+      organizationId: org._id,
+      projectId: project._id,
+      taskId: task._id,
+      evaluationSeq: 1,
+      headSha: "sha1",
+      trigger: "pull_request",
+      verdict: { status: "SKIPPED", errorCode: "NO_ACTIVE_REQUIREMENTS" },
+    });
+
+    expect(applied).toBe(true);
+    const refreshed = await Task.findById(task._id);
+    // aiLockStatus started as "pending" in the fixture — a SKIPPED verdict
+    // must not turn that into "clear", per plans/PRD_v2.md §7.3's row for
+    // "no active requirements": aiLockStatus unchanged.
+    expect(refreshed.aiLockStatus).toBe("pending");
+    expect(refreshed.lastAppliedSeq).toBe(1);
+
+    const log = await AiEvaluationLog.findOne({ task: task._id });
+    expect(log.status).toBe("SKIPPED");
+    expect(log.errorCode).toBe("NO_ACTIVE_REQUIREMENTS");
+  });
+
+  it("persists findings, critique, promptVersion, tokensUsed, durationMs, and strippedPaths from a full verdict", async () => {
+    const { org, project, task } = await createOrgProjectTask();
+    const requirementId = new mongoose.Types.ObjectId();
+
+    await persistEvaluation({
+      organizationId: org._id,
+      projectId: project._id,
+      taskId: task._id,
+      evaluationSeq: 1,
+      headSha: "sha1",
+      trigger: "pull_request",
+      verdict: {
+        status: "COMPLETED",
+        evaluation: "REJECTED",
+        requirementsTotal: 2,
+        requirementsMet: 1,
+        findings: [
+          {
+            requirementId,
+            status: "met",
+            citations: [{ path: "a.js", startLine: 1, endLine: 2, symbol: "foo", verified: true }],
+            rationale: "found it",
+          },
+        ],
+        confidence: 0.8,
+        critique: "1 requirement unmet",
+        promptVersion: "v1",
+        model: "claude-sonnet-4-6",
+        tokensUsed: 1234,
+        durationMs: 5678,
+        strippedPaths: ["dist/bundle.js"],
+      },
+    });
+
+    const log = await AiEvaluationLog.findOne({ task: task._id });
+    expect(log.findings).toHaveLength(1);
+    expect(log.findings[0].status).toBe("met");
+    expect(log.confidence).toBe(0.8);
+    expect(log.critique).toBe("1 requirement unmet");
+    expect(log.promptVersion).toBe("v1");
+    expect(log.tokensUsed).toBe(1234);
+    expect(log.durationMs).toBe(5678);
+    expect(log.strippedPaths).toEqual(["dist/bundle.js"]);
+  });
 });

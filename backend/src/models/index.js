@@ -9,3 +9,5 @@ export { ProjectNote } from "./projectnote.models.js";
 export { Activity } from "./activity.models.js";
 export { GithubInstallation } from "./github-installation.models.js";
 export { AiEvaluationLog } from "./ai-evaluation-log.models.js";
+export { OrgAiSettings } from "./org-ai-settings.models.js";
+export { OrgAiUsage } from "./org-ai-usage.models.js";

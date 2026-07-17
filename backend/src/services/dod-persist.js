@@ -12,7 +12,12 @@
 
 import { Task, AiEvaluationLog } from "../models/index.js";
 
+// `undefined` means "leave aiLockStatus untouched" — a genuine SKIPPED
+// verdict (no active requirements, AI disabled, empty diff, etc.) is not an
+// infrastructure failure and must not read the same as a real APPROVED/
+// CLEAR result (plans/PRD_v2.md §7.3).
 function nextLockStatus(verdict) {
+  if (verdict.status === "SKIPPED") return undefined;
   if (verdict.status !== "COMPLETED") return "clear"; // fail-open, always
   return verdict.evaluation === "APPROVED" ? "clear" : "blocked";
 }
@@ -26,9 +31,13 @@ export async function persistEvaluation({
   trigger,
   verdict,
 }) {
+  const lockStatus = nextLockStatus(verdict);
+  const setFields = { lastAppliedSeq: evaluationSeq };
+  if (lockStatus !== undefined) setFields.aiLockStatus = lockStatus;
+
   const res = await Task.updateOne(
     { _id: taskId, lastAppliedSeq: { $lt: evaluationSeq } },
-    { $set: { aiLockStatus: nextLockStatus(verdict), lastAppliedSeq: evaluationSeq } },
+    { $set: setFields },
   );
   const applied = res.matchedCount > 0;
 
@@ -43,7 +52,16 @@ export async function persistEvaluation({
     evaluation: applied ? (verdict.evaluation ?? null) : null,
     requirementsTotal: applied ? (verdict.requirementsTotal ?? 0) : 0,
     requirementsMet: applied ? (verdict.requirementsMet ?? 0) : 0,
+    findings: applied ? (verdict.findings ?? []) : [],
+    confidence: applied ? (verdict.confidence ?? null) : null,
+    critique: applied ? (verdict.critique ?? "") : "",
+    promptVersion: applied ? (verdict.promptVersion ?? "v0-stub") : "v0-stub",
     model: verdict.model ?? "stub",
+    tokensUsed: applied ? (verdict.tokensUsed ?? 0) : 0,
+    durationMs: applied ? (verdict.durationMs ?? 0) : 0,
+    strippedPaths: applied ? (verdict.strippedPaths ?? []) : [],
+    searchDegraded: applied ? Boolean(verdict.searchDegraded) : false,
+    injectionPatternDetected: applied ? Boolean(verdict.injectionPatternDetected) : false,
     errorCode: applied ? (verdict.errorCode ?? null) : "STALE_SEQ",
   });
 

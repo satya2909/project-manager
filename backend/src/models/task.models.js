@@ -139,6 +139,25 @@ const taskSchema = new Schema(
       default: 0,
     },
 
+    // The persisted requirement artifact (Node 4, plans/PRD_v2.md §5.2).
+    // Decomposed once, never silently regenerated — a project admin can
+    // correct a bad decomposition and every future run inherits the fix.
+    requirements: {
+      type: [
+        {
+          text: { type: String, required: true },
+          source: { type: String, enum: ["ai", "human"], required: true },
+          active: { type: Boolean, default: true },
+          addedBy: { type: Schema.Types.ObjectId, ref: "User", default: null },
+        },
+      ],
+      default: [],
+    },
+    requirementsVersion: {
+      type: Number,
+      default: 0,
+    },
+
     // Predecessor tasks (this task is blocked by these). Same-project validity
     // is enforced in the controller, not here — see task.controllers.js.
     dependsOn: {
