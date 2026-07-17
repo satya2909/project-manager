@@ -25,6 +25,9 @@
     "build": "cd frontend && npm run build",
     "start": "node backend/src/index.js",
     "migrate:orgs": "node backend/src/scripts/migrate-organizations.js",
+    "migrate:taskkeys": "node backend/src/scripts/migrate-task-keys.js",
+    "harvest:eval": "node backend/src/scripts/harvest-eval-set.js",
+    "eval:dod": "node backend/eval/run.js",
     "test": "vitest run"
   },
   "devDependencies": {

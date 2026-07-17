@@ -1,0 +1,28 @@
+name: DoD Eval Harness
+
+# Phase 0 (plans/ai-dod-plan.md) — non-blocking until Phase 6, per the
+# amended "Blocking prerequisites" section: don't run this on every push
+# (cost/rate-limit reasons, see the eng review), only when it can actually
+# tell us something — a prompt change, on demand, or nightly drift check.
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 6 * * *" # nightly, 06:00 UTC
+  pull_request:
+    paths:
+      - "backend/src/services/dod/prompts/**"
+      - "backend/eval/**"
+
+jobs:
+  eval-dod:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - run: npm ci
+      - run: npm run eval:dod
+        # Non-blocking: no `continue-on-error: false` needed to fail loudly
+        # once Phase 6's gate exists, this step's exit code becomes the gate.
+        # Until then, a non-zero exit here is informational only.
