@@ -7,6 +7,7 @@ import { OrgRolesEnum, TaskStatusEnum } from "../src/utils/constants.js";
 
 // ─── fixtures ───────────────────────────────────────────────────────────────
 let orgCounter = 0;
+let taskNumberCounter = 0;
 
 // Org.createdBy and User.organization are both required, so neither can be
 // created first in isolation — create the org with a placeholder createdBy,
@@ -48,16 +49,20 @@ async function createUser(org, role, username) {
 }
 
 async function createProjectWithTask(org, createdBy, { title = "Task", status = TaskStatusEnum.TODO } = {}) {
+  orgCounter += 1;
   const project = await Project.create({
     name: `Project for ${org.slug}`,
+    keyPrefix: `P${orgCounter}`,
     organization: org._id,
     createdBy: createdBy._id,
     members: [{ user: createdBy._id, role: "admin" }],
   });
+  taskNumberCounter += 1;
   const task = await Task.create({
     title,
     project: project._id,
     createdBy: createdBy._id,
+    taskNumber: taskNumberCounter,
     status,
   });
   return { project, task };

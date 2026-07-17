@@ -37,6 +37,26 @@ const withSubTaskStats = (tasks) =>
     },
   }));
 
+// `.lean()` queries return plain objects — Task.taskKey's virtual getter
+// never runs against them, so taskKey has to be computed by hand for every
+// lean task list. Single-project endpoints (getProjectTasks, getTimeline)
+// already have req.project.keyPrefix loaded via attachProject — pass it
+// directly rather than populating `project` per task, which would be
+// redundant data on every row. Cross-project endpoints (getMyTasks,
+// getOrgTasks) populate `project` with `keyPrefix` per task instead, since
+// each task can belong to a different project.
+const withTaskKey = (tasks, keyPrefix) =>
+  tasks.map((t) => ({
+    ...t,
+    taskKey: keyPrefix ? `${keyPrefix}-${t.taskNumber}` : null,
+  }));
+
+const withTaskKeyFromPopulatedProject = (tasks) =>
+  tasks.map((t) => ({
+    ...t,
+    taskKey: t.project?.keyPrefix ? `${t.project.keyPrefix}-${t.taskNumber}` : null,
+  }));
+
 // ─── GET /tasks/:projectId ────────────────────────────────────────────────────
 export const getProjectTasks = asyncHandler(async (req, res) => {
   const { status, assignedTo } = req.query;
@@ -60,7 +80,10 @@ export const getProjectTasks = asyncHandler(async (req, res) => {
     .sort({ createdAt: -1 })
     .lean();
 
-  const tasksWithStats = withSubTaskStats(tasks);
+  const tasksWithStats = withTaskKey(
+    withSubTaskStats(tasks),
+    req.project.keyPrefix,
+  );
 
   return res
     .status(200)
@@ -76,7 +99,7 @@ export const getMyTasks = asyncHandler(async (req, res) => {
   const tasks = await Task.find({ assignedTo: userId })
     .populate("assignedTo", "username fullName avatar")
     .populate("createdBy", "username fullName avatar")
-    .populate("project", "name")
+    .populate("project", "name keyPrefix")
     .populate({ path: "subTasks", select: "title isCompleted" })
     .sort({ project: 1, createdAt: -1 })
     .lean();
@@ -98,7 +121,9 @@ export const getMyTasks = asyncHandler(async (req, res) => {
     if (m) roleByProject.set(p._id.toString(), m.role);
   });
 
-  const tasksWithMeta = withSubTaskStats(tasks).map((t) => ({
+  const tasksWithMeta = withTaskKeyFromPopulatedProject(
+    withSubTaskStats(tasks),
+  ).map((t) => ({
     ...t,
     myRole: roleByProject.get(t.project?._id?.toString()) ?? "member",
   }));
@@ -121,12 +146,14 @@ export const getOrgTasks = asyncHandler(async (req, res) => {
   const tasks = await Task.find({ project: { $in: projectIds } })
     .populate("assignedTo", "username fullName avatar")
     .populate("createdBy", "username fullName avatar")
-    .populate("project", "name")
+    .populate("project", "name keyPrefix")
     .populate({ path: "subTasks", select: "title isCompleted" })
     .sort({ project: 1, createdAt: -1 })
     .lean();
 
-  const tasksWithStats = withSubTaskStats(tasks);
+  const tasksWithStats = withTaskKeyFromPopulatedProject(
+    withSubTaskStats(tasks),
+  );
 
   return res
     .status(200)
@@ -139,7 +166,7 @@ export const getOrgTasks = asyncHandler(async (req, res) => {
 // project member (not manager-gated, unlike schedule/dependency mutations).
 export const getTimeline = asyncHandler(async (req, res) => {
   const tasks = await Task.find({ project: req.project._id })
-    .select("title status startDate dueDate dependsOn assignedTo")
+    .select("title status startDate dueDate dependsOn assignedTo taskNumber")
     .populate("assignedTo", "username fullName avatar")
     .populate({ path: "dependsOn", select: "title" })
     .lean();
@@ -150,9 +177,11 @@ export const getTimeline = asyncHandler(async (req, res) => {
     );
   }
 
+  const tasksWithKey = withTaskKey(tasks, req.project.keyPrefix);
+
   return res
     .status(200)
-    .json(new ApiResponses(200, { tasks }, "Timeline tasks fetched"));
+    .json(new ApiResponses(200, { tasks: tasksWithKey }, "Timeline tasks fetched"));
 });
 
 // ─── POST /tasks/:projectId ───────────────────────────────────────────────────
@@ -168,12 +197,24 @@ export const createTask = asyncHandler(async (req, res) => {
     }
   }
 
+  // Atomic allocation — never `count() + 1` (same race-condition class as the
+  // Kanban ordering bug; this one would corrupt identity, not just ordering).
+  // req.project is a snapshot from attachProject; re-read taskCounter via the
+  // $inc's returned document, not req.project, since a concurrent request may
+  // have already bumped it.
+  const projectWithNextNumber = await Project.findOneAndUpdate(
+    { _id: req.project._id },
+    { $inc: { taskCounter: 1 } },
+    { new: true, projection: { taskCounter: 1, keyPrefix: 1 } },
+  );
+
   let task;
   try {
     task = await Task.create({
       title,
       description,
       project: req.project._id,
+      taskNumber: projectWithNextNumber.taskCounter,
       assignedTo: assignedTo || null,
       createdBy: req.user._id,
       status: status || TaskStatusEnum.TODO,
@@ -189,7 +230,8 @@ export const createTask = asyncHandler(async (req, res) => {
 
   const populated = await Task.findById(task._id)
     .populate("assignedTo", "username fullName avatar")
-    .populate("createdBy", "username fullName avatar");
+    .populate("createdBy", "username fullName avatar")
+    .populate("project", "keyPrefix");
 
   log(req.project._id, req.user._id, "created_task", title);
 
@@ -207,6 +249,7 @@ export const getTaskById = asyncHandler(async (req, res) => {
   const task = await Task.findOne({ _id: taskId, project: req.project._id })
     .populate("assignedTo", "username fullName avatar email")
     .populate("createdBy", "username fullName avatar")
+    .populate("project", "keyPrefix")
     .populate({
       path: "subTasks",
       populate: {

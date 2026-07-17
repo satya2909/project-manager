@@ -48,6 +48,13 @@ router
         .trim()
         .isLength({ max: 500 })
         .withMessage("Description cannot exceed 500 characters"),
+      body("keyPrefix")
+        .optional()
+        .trim()
+        .isLength({ min: 2, max: 6 })
+        .withMessage("Key prefix must be 2-6 characters")
+        .isAlpha()
+        .withMessage("Key prefix must be letters only"),
     ],
     validate,
     createProject,
@@ -73,6 +80,13 @@ router
         .trim()
         .isLength({ max: 500 })
         .withMessage("Description cannot exceed 500 characters"),
+      body("keyPrefix")
+        .optional()
+        .trim()
+        .isLength({ min: 2, max: 6 })
+        .withMessage("Key prefix must be 2-6 characters")
+        .isAlpha()
+        .withMessage("Key prefix must be letters only"),
     ],
     validate,
     updateProject,

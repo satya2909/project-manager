@@ -12,6 +12,7 @@ const waitForActivityLog = () => new Promise((resolve) => setTimeout(resolve, 50
 
 // ─── fixtures ───────────────────────────────────────────────────────────────
 let orgCounter = 0;
+let taskNumberCounter = 0;
 
 async function createOrg(ownerRole = OrgRolesEnum.OWNER) {
   orgCounter += 1;
@@ -50,8 +51,10 @@ async function createUser(org, role, username) {
 }
 
 async function createProject(org, createdBy, extraMembers = []) {
+  orgCounter += 1;
   return Project.create({
     name: `Project for ${org.slug}`,
+    keyPrefix: `P${orgCounter}`,
     organization: org._id,
     createdBy: createdBy._id,
     members: [
@@ -62,10 +65,12 @@ async function createProject(org, createdBy, extraMembers = []) {
 }
 
 async function createTask(project, createdBy, overrides = {}) {
+  taskNumberCounter += 1;
   return Task.create({
     title: "Task",
     project: project._id,
     createdBy: createdBy._id,
+    taskNumber: taskNumberCounter,
     ...overrides,
   });
 }

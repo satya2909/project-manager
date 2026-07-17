@@ -51,6 +51,14 @@ const taskSchema = new Schema(
       index: true,
     },
 
+    // Immutable identity — the number half of the computed `taskKey`
+    // (`${project.keyPrefix}-${taskNumber}`). Allocated atomically via
+    // Project.taskCounter ($inc), never `count() + 1`. See plans/PRD_v2.md §6.1.
+    taskNumber: {
+      type: Number,
+      required: true,
+    },
+
     assignedTo: {
       type: Schema.Types.ObjectId,
       ref: "User",
@@ -121,6 +129,19 @@ taskSchema.index({ project: 1, status: 1 });
 // "get all tasks assigned to user X"
 taskSchema.index({ assignedTo: 1 });
 
+// Identity: unique per project. Never queried by taskKey — always
+// project (from repo/route resolution) then this number.
+//
+// Partial, not plain `unique: true` — same reasoning as Project.keyPrefix's
+// index: a plain unique index treats a MISSING taskNumber as a single `null`
+// entry, so every pre-migration legacy task in the same project (exactly
+// what Phase 1.4's migration exists to backfill) would collide on index
+// build. Partial on "taskNumber actually exists" excludes them correctly.
+taskSchema.index(
+  { project: 1, taskNumber: 1 },
+  { unique: true, partialFilterExpression: { taskNumber: { $exists: true } } },
+);
+
 // ─── Virtuals ─────────────────────────────────────────────────────────────────
 
 // Populate subtasks via virtual — avoids embedding and keeps collection separate
@@ -128,6 +149,16 @@ taskSchema.virtual("subTasks", {
   ref: "SubTask",
   localField: "_id",
   foreignField: "task",
+});
+
+// Computed at read time — never persisted (plans/PRD_v2.md §6.1). Requires
+// `project` to be populated with at least `keyPrefix`; the controller should
+// prefer passing the prefix down from `req.project` (already loaded by
+// `attachProject`) rather than a fresh populate() where avoidable.
+taskSchema.virtual("taskKey").get(function () {
+  return this.project?.keyPrefix
+    ? `${this.project.keyPrefix}-${this.taskNumber}`
+    : null;
 });
 
 export const Task = mongoose.model("Task", taskSchema);

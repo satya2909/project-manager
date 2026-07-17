@@ -7,6 +7,7 @@ import { OrgRolesEnum } from "../src/utils/constants.js";
 
 // ─── fixtures ───────────────────────────────────────────────────────────────
 let orgCounter = 0;
+let taskNumberCounter = 0;
 
 async function createOrg(ownerRole = OrgRolesEnum.OWNER) {
   orgCounter += 1;
@@ -33,11 +34,27 @@ async function createOrg(ownerRole = OrgRolesEnum.OWNER) {
 }
 
 async function createProject(org, createdBy) {
+  orgCounter += 1;
   return Project.create({
     name: `Project for ${org.slug}`,
+    keyPrefix: `P${orgCounter}`,
     organization: org._id,
     createdBy: createdBy._id,
     members: [{ user: createdBy._id, role: "admin" }],
+  });
+}
+
+// taskNumber is unique per project, not globally — but a monotonically
+// increasing counter across the whole file trivially satisfies that too,
+// and is simpler than tracking a counter per project in these fixtures.
+async function createTaskFixture(project, createdBy, overrides = {}) {
+  taskNumberCounter += 1;
+  return Task.create({
+    title: "Task",
+    project: project._id,
+    createdBy: createdBy._id,
+    taskNumber: taskNumberCounter,
+    ...overrides,
   });
 }
 
@@ -52,10 +69,8 @@ describe("Task scheduling fields — schema validation", () => {
     const project = await createProject(org, owner);
 
     await expect(
-      Task.create({
+      createTaskFixture(project, owner, {
         title: "Bad dates",
-        project: project._id,
-        createdBy: owner._id,
         startDate: new Date("2026-08-10"),
         dueDate: new Date("2026-08-01"),
       }),
@@ -66,10 +81,8 @@ describe("Task scheduling fields — schema validation", () => {
     const { org, owner } = await createOrg();
     const project = await createProject(org, owner);
 
-    const task = await Task.create({
+    const task = await createTaskFixture(project, owner, {
       title: "Good dates",
-      project: project._id,
-      createdBy: owner._id,
       startDate: new Date("2026-08-01"),
       dueDate: new Date("2026-08-10"),
     });
@@ -84,10 +97,8 @@ describe("Task scheduling fields — schema validation", () => {
     const tooMany = Array.from({ length: 21 }, () => new mongoose.Types.ObjectId());
 
     await expect(
-      Task.create({
+      createTaskFixture(project, owner, {
         title: "Overloaded deps",
-        project: project._id,
-        createdBy: owner._id,
         dependsOn: tooMany,
       }),
     ).rejects.toThrow(/at most 20/);
@@ -100,16 +111,12 @@ describe("DELETE /tasks/:projectId/t/:taskId — dependsOn cascade scrub", () =>
     const { org, owner } = await createOrg();
     const project = await createProject(org, owner);
 
-    const predecessor = await Task.create({
+    const predecessor = await createTaskFixture(project, owner, {
       title: "Predecessor",
-      project: project._id,
-      createdBy: owner._id,
     });
 
-    const dependent = await Task.create({
+    const dependent = await createTaskFixture(project, owner, {
       title: "Dependent",
-      project: project._id,
-      createdBy: owner._id,
       dependsOn: [predecessor._id],
     });
 
@@ -128,18 +135,14 @@ describe("DELETE /tasks/:projectId/t/:taskId — dependsOn cascade scrub", () =>
     const projectA = await createProject(org, owner);
     const projectB = await createProject(org, owner);
 
-    const predecessor = await Task.create({
+    const predecessor = await createTaskFixture(projectA, owner, {
       title: "Predecessor A",
-      project: projectA._id,
-      createdBy: owner._id,
     });
 
     // Same-project-only dependency in practice, but the cascade query itself
     // should still be scoped by project — verify it doesn't leak across.
-    const unrelated = await Task.create({
+    const unrelated = await createTaskFixture(projectB, owner, {
       title: "Unrelated B",
-      project: projectB._id,
-      createdBy: owner._id,
       dependsOn: [],
     });
 

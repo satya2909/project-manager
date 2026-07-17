@@ -21,17 +21,67 @@ const log = (projectId, userId, action, target = "", metadata = {}) => {
   }).catch((e) => console.error("[Activity]", e.message));
 };
 
+// ─── helper — task-key prefix ──────────────────────────────────────────────────
+// Prefix is "chosen, not derived" in the product (plans/PRD_v2.md §6.1) — the
+// create-project modal always sends an explicit, user-edited value. This
+// fallback exists for direct API/script callers only, so the endpoint never
+// 500s on a missing field; it does not replace the UI's explicit-choice flow.
+function deriveKeyPrefix(name) {
+  const letters = (name || "").replace(/[^a-zA-Z]/g, "").toUpperCase();
+  const base = letters.slice(0, 4) || "PROJ";
+  return base.length < 2 ? base.padEnd(2, "X") : base;
+}
+
+// Uniqueness spans keyPrefix ∪ prefixAliases, scoped to the org — Mongo can't
+// express "unique across a scalar ∪ an array" as one index, so the
+// authoritative check lives here (the DB indexes in project.models.js are a
+// second line of defense, not the sole enforcement). `excludeProjectId` lets
+// a rename check against every OTHER project's prefixes without excluding
+// itself from... itself (a project keeping its own current prefix isn't a
+// collision).
+async function assertPrefixAvailable(organizationId, prefix, { excludeProjectId } = {}) {
+  const query = {
+    organization: organizationId,
+    $or: [{ keyPrefix: prefix }, { prefixAliases: prefix }],
+  };
+  if (excludeProjectId) {
+    query._id = { $ne: excludeProjectId };
+  }
+  const collision = await Project.findOne(query).select("_id").lean();
+  if (collision) {
+    throw new ApiError(
+      409,
+      `Key prefix "${prefix}" is already in use in your organization`,
+    );
+  }
+}
+
 // ─── POST /projects ───────────────────────────────────────────────────────────
 export const createProject = asyncHandler(async (req, res) => {
   const { name, description } = req.body;
+  const keyPrefix = (req.body.keyPrefix || deriveKeyPrefix(name)).toUpperCase();
 
-  const project = await Project.create({
-    name,
-    description,
-    organization: req.user.organization,
-    createdBy: req.user._id,
-    members: [{ user: req.user._id, role: ProjectRolesEnum.ADMIN }],
-  });
+  await assertPrefixAvailable(req.user.organization, keyPrefix);
+
+  let project;
+  try {
+    project = await Project.create({
+      name,
+      description,
+      keyPrefix,
+      organization: req.user.organization,
+      createdBy: req.user._id,
+      members: [{ user: req.user._id, role: ProjectRolesEnum.ADMIN }],
+    });
+  } catch (err) {
+    if (err.name === "ValidationError") {
+      throw new ApiError(400, err.message);
+    }
+    if (err.code === 11000) {
+      throw new ApiError(409, "Key prefix is already in use in your organization");
+    }
+    throw err;
+  }
 
   return res
     .status(201)
@@ -90,13 +140,33 @@ export const getProjectById = asyncHandler(async (req, res) => {
 
 // ─── PUT /projects/:projectId ─────────────────────────────────────────────────
 export const updateProject = asyncHandler(async (req, res) => {
-  const { name, description } = req.body;
+  const { name, description, keyPrefix } = req.body;
 
-  const updatedProject = await Project.findByIdAndUpdate(
-    req.project._id,
-    { $set: { name, description } },
-    { new: true, runValidators: true },
-  );
+  const update = { $set: {} };
+  if (name !== undefined) update.$set.name = name;
+  if (description !== undefined) update.$set.description = description;
+
+  if (keyPrefix !== undefined) {
+    const nextPrefix = keyPrefix.toUpperCase();
+    if (nextPrefix !== req.project.keyPrefix) {
+      // Prefixes are never reassignable (plans/PRD_v2.md §6.1) — uniqueness
+      // spans keyPrefix ∪ prefixAliases, so this also rejects reusing a
+      // prefix this same project retired earlier via a prior rename.
+      await assertPrefixAvailable(req.user.organization, nextPrefix, {
+        excludeProjectId: req.project._id,
+      });
+      update.$set.keyPrefix = nextPrefix;
+      // The old prefix becomes an alias so in-flight branches/PRs referencing
+      // it still parse (plans/PRD_v2.md §6.1) — one write, one document, zero
+      // task updates, since taskKey is computed, not stored.
+      update.$addToSet = { prefixAliases: req.project.keyPrefix };
+    }
+  }
+
+  const updatedProject = await Project.findByIdAndUpdate(req.project._id, update, {
+    new: true,
+    runValidators: true,
+  });
 
   return res
     .status(200)
