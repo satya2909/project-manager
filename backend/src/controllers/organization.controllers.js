@@ -1,5 +1,13 @@
 import mongoose from "mongoose";
-import { Organization, User, Project, Invite } from "../models/index.js";
+import {
+  Organization,
+  User,
+  Project,
+  Invite,
+  OrgAiSettings,
+  OrgAiUsage,
+  AiEvaluationLog,
+} from "../models/index.js";
 import { ApiError } from "../utils/api-error.js";
 import { ApiResponses } from "../utils/api-responses.js";
 import { asyncHandler } from "../utils/async-handler.js";
@@ -8,6 +16,8 @@ import {
   OrgRoleHierarchy,
   cookieOptions,
 } from "../utils/constants.js";
+
+const currentPeriod = () => new Date().toISOString().slice(0, 7); // "YYYY-MM"
 
 // Fields safe to return for any user (never password / tokens).
 const SAFE_USER_FIELDS = "username fullName avatar email role status isEmailVerified createdAt";
@@ -194,4 +204,88 @@ export const deactivateOrgMember = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(new ApiResponses(200, {}, "Member deactivated"));
+});
+
+// ─── AI DoD org settings (Phase 5/7, plans/ai-dod-plan.md) ────────────────────
+
+// ─── GET /organizations/ai-settings ───────────────────────────────────────────
+// Org owner/admin. Settings default in place even before anyone has saved
+// them once — OrgAiSettings is only ever created on first read/write, never
+// as part of org creation (advisory mode is the schema default).
+export const getAiSettings = asyncHandler(async (req, res) => {
+  const orgId = req.user.organization;
+
+  const [settings, usage, recentFailOpens] = await Promise.all([
+    OrgAiSettings.findOne({ organization: orgId }),
+    OrgAiUsage.findOne({ organization: orgId, period: currentPeriod() }),
+    AiEvaluationLog.find({ organization: orgId, status: "PASSED_BY_SYSTEM_ERROR" })
+      .sort({ createdAt: -1 })
+      .limit(10)
+      .select("task headSha errorCode createdAt")
+      .lean(),
+  ]);
+
+  return res.status(200).json(
+    new ApiResponses(
+      200,
+      {
+        settings: settings ?? {
+          organization: orgId,
+          mode: "advisory",
+          killSwitch: false,
+          monthlyTokenQuota: 2_000_000,
+        },
+        usage: usage ?? { period: currentPeriod(), tokensUsed: 0, runs: 0 },
+        recentFailOpens,
+      },
+      "AI settings fetched",
+    ),
+  );
+});
+
+// ─── PUT /organizations/ai-settings ────────────────────────────────────────────
+// Org owner/admin. `blocking` is always rejected for now — Phase 6 gates it
+// behind the eval harness clearing REJECT precision >= 0.90 for this org,
+// which doesn't exist yet (plans/ai-dod-plan.md Phase 6.3). Ship advisory/off
+// here; blocking is a Phase 6 feature, not a Phase 5 one.
+export const updateAiSettings = asyncHandler(async (req, res) => {
+  const orgId = req.user.organization;
+  const { mode, killSwitch, monthlyTokenQuota } = req.body;
+
+  if (mode !== undefined) {
+    if (!["off", "advisory", "blocking"].includes(mode)) {
+      throw new ApiError(400, "mode must be one of: off, advisory, blocking");
+    }
+    if (mode === "blocking") {
+      throw new ApiError(
+        403,
+        "Blocking mode isn't available yet — it ships once the AI DoD eval harness clears its accuracy gate for this feature",
+      );
+    }
+  }
+
+  if (killSwitch !== undefined && typeof killSwitch !== "boolean") {
+    throw new ApiError(400, "killSwitch must be a boolean");
+  }
+
+  if (monthlyTokenQuota !== undefined) {
+    if (typeof monthlyTokenQuota !== "number" || monthlyTokenQuota < 0) {
+      throw new ApiError(400, "monthlyTokenQuota must be a non-negative number");
+    }
+  }
+
+  const update = {};
+  if (mode !== undefined) update.mode = mode;
+  if (killSwitch !== undefined) update.killSwitch = killSwitch;
+  if (monthlyTokenQuota !== undefined) update.monthlyTokenQuota = monthlyTokenQuota;
+
+  const settings = await OrgAiSettings.findOneAndUpdate(
+    { organization: orgId },
+    { $set: update, $setOnInsert: { organization: orgId } },
+    { new: true, upsert: true, runValidators: true },
+  );
+
+  return res
+    .status(200)
+    .json(new ApiResponses(200, { settings }, "AI settings updated"));
 });

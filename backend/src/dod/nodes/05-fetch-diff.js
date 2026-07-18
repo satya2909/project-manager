@@ -3,7 +3,10 @@
 // retry with backoff (3x) then fail open — a GitHub outage must never lock
 // a task (§7.3).
 
-import { fetchPullRequestDiff as defaultFetchDiffImpl } from "../github/diff.js";
+import {
+  fetchPullRequestDiff as defaultFetchDiffImpl,
+  fetchCompareDiff as defaultFetchCompareDiffImpl,
+} from "../github/diff.js";
 import { stripDiff } from "../github/diff-stripper.js";
 import { getRepoAndToken } from "../github/installation-auth.js";
 
@@ -15,19 +18,35 @@ function delay(ms) {
 
 export async function fetchDiff(
   state,
-  { getInstallationToken, fetchDiffImpl = defaultFetchDiffImpl, delayImpl = delay } = {},
+  {
+    getInstallationToken,
+    fetchDiffImpl = defaultFetchDiffImpl,
+    fetchCompareDiffImpl = defaultFetchCompareDiffImpl,
+    delayImpl = delay,
+  } = {},
 ) {
   let lastError;
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
     try {
       const { owner, repo, token } = await getRepoAndToken(state, { getInstallationToken });
 
-      const rawDiff = await fetchDiffImpl({
-        owner,
-        repo,
-        prNumber: state.repo.prNumber,
-        token,
-      });
+      // No PR (e.g. the "Verify now" manual path against a branch pushed
+      // straight up, plans/PRD_v2.md §5.6) — diff against the default
+      // branch instead of a pull request.
+      const rawDiff = state.repo.prNumber
+        ? await fetchDiffImpl({
+            owner,
+            repo,
+            prNumber: state.repo.prNumber,
+            token,
+          })
+        : await fetchCompareDiffImpl({
+            owner,
+            repo,
+            base: state.repo.baseSha,
+            head: state.pinnedSha,
+            token,
+          });
 
       state.diff = stripDiff(rawDiff);
       return state;

@@ -16,6 +16,9 @@ import {
   deleteSubTask,
   addTaskAttachments,
   deleteTaskAttachment,
+  getAiLogs,
+  updateTaskRequirements,
+  requestAiEvaluate,
 } from "../controllers/task.controllers.js";
 import {
   verifyJWT,
@@ -25,6 +28,7 @@ import {
 import { attachProject } from "../middlewares/project.middlewares.js";
 import { validate } from "../middlewares/validator.middlewares.js";
 import { uploadTaskFiles } from "../middlewares/multer.middlewares.js";
+import { limitAiEvaluate } from "../middlewares/ratelimit.middlewares.js";
 import {
   ProjectRolesEnum,
   OrgRolesEnum,
@@ -262,5 +266,49 @@ router
     validate,
     deleteTaskAttachment,
   );
+
+// ─── /tasks/:projectId/t/:taskId/ai-logs ──────────────────────────────────────
+// Any project member — readable history, not a mutation.
+router.get(
+  "/:projectId/t/:taskId/ai-logs",
+  attachProject,
+  [param("taskId").isMongoId().withMessage("Invalid task ID")],
+  validate,
+  getAiLogs,
+);
+
+// ─── /tasks/:projectId/t/:taskId/requirements ─────────────────────────────────
+router.put(
+  "/:projectId/t/:taskId/requirements",
+  attachProject,
+  checkProjectRole(ProjectRolesEnum.PROJECT_ADMIN),
+  [
+    param("taskId").isMongoId().withMessage("Invalid task ID"),
+    body("requirements").isArray({ min: 1, max: 20 }).withMessage("requirements must be a non-empty array"),
+    body("requirements.*.text")
+      .trim()
+      .notEmpty()
+      .withMessage("Every requirement needs text")
+      .isLength({ max: 500 })
+      .withMessage("Requirement text cannot exceed 500 characters"),
+  ],
+  validate,
+  updateTaskRequirements,
+);
+
+// ─── /tasks/:projectId/t/:taskId/ai-evaluate ──────────────────────────────────
+// Manual "Verify now" — rate-limited 1/min/task (plans/PRD_v2.md §8).
+router.post(
+  "/:projectId/t/:taskId/ai-evaluate",
+  attachProject,
+  checkProjectRole(ProjectRolesEnum.PROJECT_ADMIN),
+  limitAiEvaluate,
+  [
+    param("taskId").isMongoId().withMessage("Invalid task ID"),
+    body("branch").optional().trim().isLength({ max: 250 }).withMessage("Invalid branch name"),
+  ],
+  validate,
+  requestAiEvaluate,
+);
 
 export default router;

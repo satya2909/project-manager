@@ -4,7 +4,7 @@ import { Building2, Users, Mail, Trash2, Send, Upload, Download, GitBranch } fro
 import { useAuth } from "../../context/authcontext.jsx";
 import organizationService from "../../services/organization.service.js";
 import inviteService from "../../services/invite.service.js";
-import { integrationsApi, parseApiError } from "../../api/index.js";
+import { integrationsApi, orgApi, parseApiError } from "../../api/index.js";
 import OrgMembersPanel from "../../components/ui/OrgMembersPanel.jsx";
 import { InlineError, InlineSuccess, Spinner, Button } from "../../components/ui/primitive.jsx";
 
@@ -106,6 +106,101 @@ function IntegrationsTab() {
           )}
         </div>
       )}
+
+      <AiSettingsSection />
+    </div>
+  );
+}
+
+// ─── AI VERIFICATION SETTINGS (plans/ai-dod-plan.md Phase 5) ──────────────────
+// Minimal mode/kill-switch controls so Phase 5's advisory mode is actually
+// reachable. Usage/spend/alerts dashboards are Phase 7 (ai-dod-plan.md §7 Ops),
+// not built here.
+function AiSettingsSection() {
+  const { isOrgAdmin } = useAuth();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState(null);
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data: res } = await orgApi.getAiSettings();
+      setData(res?.data ?? null);
+    } catch (e) {
+      setError(parseApiError(e));
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+  }, [load]);
+
+  const patch = async (update) => {
+    setError(null);
+    setBusy(true);
+    try {
+      const { data: res } = await orgApi.updateAiSettings(update);
+      setData((d) => ({ ...d, settings: res?.data?.settings ?? d.settings }));
+    } catch (e) {
+      setError(parseApiError(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!isOrgAdmin) return null;
+  if (loading) return null;
+
+  const settings = data?.settings ?? { mode: "advisory", killSwitch: false };
+  const usage = data?.usage ?? { tokensUsed: 0, runs: 0 };
+
+  return (
+    <div style={{ marginTop: 28, maxWidth: 640 }}>
+      <div style={S.sectionLabel}>
+        <span>AI VERIFICATION</span>
+        <div style={S.rule} />
+      </div>
+
+      {error && <div style={{ marginBottom: 12 }}><InlineError message={error} /></div>}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: "0.83rem", color: "var(--text-dim)", width: 90 }}>Mode</span>
+          <select
+            value={settings.mode}
+            onChange={(e) => patch({ mode: e.target.value })}
+            disabled={busy}
+            className="input-field"
+            style={{ maxWidth: 200 }}
+          >
+            <option value="off">Off</option>
+            <option value="advisory">Advisory</option>
+            <option value="blocking" disabled>
+              Blocking (not available yet)
+            </option>
+          </select>
+        </div>
+
+        <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+          <span style={{ fontSize: "0.83rem", color: "var(--text-dim)", width: 90 }}>Kill switch</span>
+          <Button
+            variant={settings.killSwitch ? "danger" : "ghost"}
+            onClick={() => patch({ killSwitch: !settings.killSwitch })}
+            disabled={busy}
+            style={{ padding: "5px 10px", fontSize: "0.76rem" }}
+          >
+            {settings.killSwitch ? "Disabled — click to re-enable" : "Enabled — click to kill"}
+          </Button>
+        </div>
+
+        <span style={{ fontFamily: "var(--font-mono)", fontSize: "0.72rem", color: "var(--text-dim)" }}>
+          This period: {usage.runs} run{usage.runs === 1 ? "" : "s"}, {usage.tokensUsed.toLocaleString()} tokens
+        </span>
+      </div>
     </div>
   );
 }

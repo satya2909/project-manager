@@ -7,6 +7,8 @@ import {
   getOrgMembers,
   updateOrgMemberRole,
   deactivateOrgMember,
+  getAiSettings,
+  updateAiSettings,
 } from "../controllers/organization.controllers.js";
 import { verifyJWT, checkOrgRole } from "../middlewares/auth.middlewares.js";
 import { validate } from "../middlewares/validator.middlewares.js";
@@ -82,6 +84,21 @@ router
     [userIdParam],
     validate,
     deactivateOrgMember,
+  );
+
+// ─── /organizations/ai-settings ───────────────────────────────────────────────
+router
+  .route("/ai-settings")
+  .get(checkOrgRole(OrgRolesEnum.ADMIN), getAiSettings)
+  .put(
+    checkOrgRole(OrgRolesEnum.ADMIN),
+    [
+      body("mode").optional().isIn(["off", "advisory", "blocking"]),
+      body("killSwitch").optional().isBoolean().toBoolean(),
+      body("monthlyTokenQuota").optional().isInt({ min: 0 }).toInt(),
+    ],
+    validate,
+    updateAiSettings,
   );
 
 export default router;

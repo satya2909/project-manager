@@ -119,6 +119,33 @@ const taskService = {
     const res = await api.delete(`/tasks/${projectId}/st/${subTaskId}`);
     return d(res);
   },
+
+  // ── AI DoD verification (plans/ai-dod-plan.md Phase 5) ─────────────────────
+
+  /**
+   * GET /tasks/:projectId/t/:taskId/ai-logs — paginated evaluation history
+   */
+  getAiLogs: async (projectId, taskId, params = {}) => {
+    const res = await api.get(`/tasks/${projectId}/t/${taskId}/ai-logs`, { params });
+    return d(res);
+  },
+
+  /**
+   * PUT /tasks/:projectId/t/:taskId/requirements  (Admin / Project Admin)
+   * @param {{ requirements: Array<{_id?: string, text: string, active?: boolean}> }} payload
+   */
+  updateRequirements: async (projectId, taskId, payload) => {
+    const res = await api.put(`/tasks/${projectId}/t/${taskId}/requirements`, payload);
+    return d(res);
+  },
+
+  /**
+   * POST /tasks/:projectId/t/:taskId/ai-evaluate  (Admin / Project Admin) — "Verify now"
+   */
+  requestAiEvaluate: async (projectId, taskId, payload = {}) => {
+    const res = await api.post(`/tasks/${projectId}/t/${taskId}/ai-evaluate`, payload);
+    return d(res);
+  },
 };
 
 export default taskService;

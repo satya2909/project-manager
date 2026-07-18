@@ -783,6 +783,7 @@ function TasksTab({ project, members }) {
         onUpdate={handleTaskUpdate}
         onDelete={handleTaskDelete}
         canManage={canManage}
+        repoFullName={project.githubRepo?.fullName ?? null}
       />
     </>
   );

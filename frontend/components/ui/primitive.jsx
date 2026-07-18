@@ -6,8 +6,10 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 import { useState } from "react";
+import { motion } from "framer-motion";
 import { TriangleAlert, Clock } from "lucide-react";
 import { getDueDateStatus } from "../../utils/index.js";
+import { fadeUp } from "../../motion/tokens";
 
 // ── Button ────────────────────────────────────────────────────────────────────
 export function Button({ variant = "primary", className = "", children, ...props }) {
@@ -118,6 +120,50 @@ export function TaskKeyBadge({ taskKey, size = "sm" }) {
     >
       {taskKey}
     </button>
+  );
+}
+
+// ── AiLockDot ────────────────────────────────────────────────────────────────
+// AI DoD verification status (plans/ai-dod-plan.md Phase 5.1). `none` renders
+// nothing — a task that's never been evaluated shouldn't imply a verdict.
+// `blocked` is `--brass`, not `--danger`: advisory mode is information, not an
+// alarm (DESIGN.md has no "amber" token; brass's documented role — "warnings,
+// warm hierarchy" — is the correct existing fit). Fades in once on mount
+// (marks the transition *into* this state) rather than looping — DESIGN.md
+// §8 bans idle motion on anything not responding to an action.
+const AI_LOCK_COLOR = {
+  pending: "var(--text-dim)",
+  blocked: "var(--brass)",
+  clear: "var(--signal)",
+};
+const AI_LOCK_LABEL = {
+  pending: "AI verification in progress",
+  blocked: "AI verification: requirements unevidenced",
+  clear: "AI verification: requirements evidenced",
+};
+
+export function AiLockDot({ status, size = 6 }) {
+  const color = AI_LOCK_COLOR[status];
+  if (!color) return null;
+
+  return (
+    <motion.span
+      key={status}
+      variants={fadeUp}
+      initial="hidden"
+      animate="show"
+      role="img"
+      aria-label={AI_LOCK_LABEL[status]}
+      title={AI_LOCK_LABEL[status]}
+      style={{
+        display: "inline-block",
+        width: size,
+        height: size,
+        borderRadius: "50%",
+        background: color,
+        flexShrink: 0,
+      }}
+    />
   );
 }
 
@@ -333,6 +379,7 @@ export default {
   Badge,
   DueDateBadge,
   TaskKeyBadge,
+  AiLockDot,
   Label,
   Input,
   Field,

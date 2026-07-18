@@ -1,11 +1,27 @@
 import path from "path";
 import fs from "fs";
-import { Task, SubTask, Activity, Project } from "../models/index.js";
+import {
+  Task,
+  SubTask,
+  Activity,
+  Project,
+  AiEvaluationLog,
+  GithubInstallation,
+} from "../models/index.js";
 import { ApiError } from "../utils/api-error.js";
 import { ApiResponses } from "../utils/api-responses.js";
 import { asyncHandler } from "../utils/async-handler.js";
-import { TaskStatusEnum, ProjectRolesEnum } from "../utils/constants.js";
+import {
+  TaskStatusEnum,
+  ProjectRolesEnum,
+  DEFAULT_PAGE_LIMIT,
+  MAX_PAGE_LIMIT,
+} from "../utils/constants.js";
 import { wouldCreateCycle } from "../utils/dependency-graph.js";
+import { dodQueue } from "../queue/dod-queue-instance.js";
+import { getInstallationToken } from "../services/github-app.service.js";
+import { tokenCache, getGithubAppConfig } from "../services/github-app-config.js";
+import { getRefSha } from "../dod/github/refs.js";
 
 // Above this task count, GET /timeline and the dependency cycle-check both
 // fetch the project's full task set in one query — a tripwire log, not a
@@ -776,4 +792,183 @@ export const deleteTaskAttachment = asyncHandler(async (req, res) => {
   return res
     .status(200)
     .json(new ApiResponses(200, { task: updatedTask }, "Attachment deleted"));
+});
+
+// ─── AI DoD verification (Phase 5, plans/ai-dod-plan.md) ──────────────────────
+
+// ─── GET /tasks/:projectId/t/:taskId/ai-logs ──────────────────────────────────
+// Any project member. Paginated by recency — served by the compound
+// {task, createdAt} index (plans/PRD_v2.md §5.3 note).
+export const getAiLogs = asyncHandler(async (req, res) => {
+  const { taskId } = req.params;
+
+  const task = await Task.findOne({ _id: taskId, project: req.project._id }).select("_id");
+  if (!task) {
+    throw new ApiError(404, "Task not found");
+  }
+
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const limit = Math.min(
+    MAX_PAGE_LIMIT,
+    Math.max(1, parseInt(req.query.limit, 10) || DEFAULT_PAGE_LIMIT),
+  );
+
+  const [logs, total] = await Promise.all([
+    AiEvaluationLog.find({ task: task._id })
+      .sort({ createdAt: -1 })
+      .skip((page - 1) * limit)
+      .limit(limit)
+      .lean(),
+    AiEvaluationLog.countDocuments({ task: task._id }),
+  ]);
+
+  return res.status(200).json(
+    new ApiResponses(
+      200,
+      { logs, page, limit, total, hasMore: page * limit < total },
+      "AI evaluation history fetched",
+    ),
+  );
+});
+
+// ─── PUT /tasks/:projectId/t/:taskId/requirements ─────────────────────────────
+// project admin/project_admin. Replaces the full requirements array (add/edit/
+// deactivate all happen client-side against the loaded list, then the whole
+// artifact is sent back) — bumps requirementsVersion so a stale cached run
+// knows its checklist changed (plans/PRD_v2.md §5.2).
+export const updateTaskRequirements = asyncHandler(async (req, res) => {
+  const { taskId } = req.params;
+  const { requirements } = req.body;
+
+  if (!Array.isArray(requirements) || requirements.length === 0) {
+    throw new ApiError(400, "requirements must be a non-empty array");
+  }
+  if (requirements.length > 20) {
+    throw new ApiError(400, "A task can have at most 20 requirements");
+  }
+  for (const r of requirements) {
+    if (!r || typeof r.text !== "string" || !r.text.trim()) {
+      throw new ApiError(400, "Every requirement needs non-empty text");
+    }
+  }
+
+  const task = await Task.findOne({ _id: taskId, project: req.project._id });
+  if (!task) {
+    throw new ApiError(404, "Task not found");
+  }
+
+  // Preserve source/addedBy from the original doc for edits (never trust the
+  // client for provenance); only a genuinely new item (no matching _id) is
+  // stamped "human" + the current editor.
+  const originalById = new Map(task.requirements.map((r) => [String(r._id), r]));
+  task.requirements = requirements.map((r) => {
+    const original = r._id ? originalById.get(String(r._id)) : null;
+    if (original) {
+      return {
+        _id: original._id,
+        text: r.text.trim(),
+        source: original.source,
+        active: r.active ?? original.active,
+        addedBy: original.addedBy,
+      };
+    }
+    return {
+      text: r.text.trim(),
+      source: "human",
+      active: r.active ?? true,
+      addedBy: req.user._id,
+    };
+  });
+  task.requirementsVersion += 1;
+  await task.save();
+
+  log(req.project._id, req.user._id, "ai_dod_requirements_edited", task.title, {
+    requirementsVersion: task.requirementsVersion,
+  });
+
+  return res
+    .status(200)
+    .json(new ApiResponses(200, { task }, "Requirements updated"));
+});
+
+// ─── POST /tasks/:projectId/t/:taskId/ai-evaluate ─────────────────────────────
+// project admin/project_admin. Manual "Verify now" — covers the gap where no
+// `pull_request` webhook will ever fire (work pushed straight to a branch).
+// Rate-limited 1/min/task at the route layer (see task.routes.js).
+export const requestAiEvaluate = asyncHandler(async (req, res) => {
+  const { taskId } = req.params;
+
+  const task = await Task.findOne({ _id: taskId, project: req.project._id });
+  if (!task) {
+    throw new ApiError(404, "Task not found");
+  }
+
+  if (!req.project.githubRepo) {
+    throw new ApiError(400, "This project has no GitHub repository bound");
+  }
+
+  const branch = (req.body?.branch || task.githubBranch || "").trim();
+  if (!branch) {
+    throw new ApiError(
+      400,
+      "No branch to evaluate — provide one, or push to a branch on this task first",
+    );
+  }
+
+  const installation = await GithubInstallation.findOne({
+    organization: req.user.organization,
+    status: { $ne: "deleted" },
+  });
+  if (!installation) {
+    throw new ApiError(400, "No active GitHub installation for this organization");
+  }
+
+  const { appId, privateKey } = getGithubAppConfig();
+  const [owner, repoName] = req.project.githubRepo.fullName.split("/");
+
+  const token = await getInstallationToken({
+    installationId: installation.installationId,
+    cache: tokenCache,
+    appId,
+    privateKey,
+  });
+
+  let headSha;
+  try {
+    headSha = await getRefSha({ owner, repo: repoName, ref: branch, token });
+  } catch {
+    throw new ApiError(400, `Could not resolve branch "${branch}" on ${req.project.githubRepo.fullName}`);
+  }
+
+  // Same seq-bump-on-enqueue convention as the webhook path — completion
+  // order isn't issue order under unpredictable LLM latency (PRD §5.6).
+  const updated = await Task.findOneAndUpdate(
+    { _id: task._id },
+    { $inc: { evaluationSeq: 1 }, $set: { aiLockStatus: "pending", githubBranch: branch } },
+    { new: true },
+  );
+
+  dodQueue.enqueue({
+    taskId: task._id.toString(),
+    headSha,
+    payload: {
+      organizationId: req.user.organization,
+      projectId: req.project._id,
+      taskId: task._id,
+      evaluationSeq: updated.evaluationSeq,
+      headSha,
+      trigger: "manual",
+      repo: {
+        fullName: req.project.githubRepo.fullName,
+        installationId: installation.installationId,
+        headSha,
+        baseSha: req.project.githubRepo.defaultBranch,
+        prNumber: null,
+      },
+    },
+  });
+
+  return res
+    .status(202)
+    .json(new ApiResponses(202, { aiLockStatus: "pending" }, "Evaluation enqueued"));
 });

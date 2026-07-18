@@ -127,6 +127,8 @@ export const orgApi = {
     api.put(`/organizations/members/${userId}`, data),
   deactivateMember: (userId) =>
     api.delete(`/organizations/members/${userId}`),
+  getAiSettings: () => api.get("/organizations/ai-settings"),
+  updateAiSettings: (data) => api.put("/organizations/ai-settings", data),
 };
 
 // ─── INTEGRATIONS (GitHub App) ────────────────────────────────────────────────
@@ -194,6 +196,12 @@ export const tasksApi = {
     api.post(`/tasks/${projectId}/t/${taskId}/attachments`, formData, {
       headers: { "Content-Type": "multipart/form-data" },
     }),
+  getAiLogs: (projectId, taskId, params = {}) =>
+    api.get(`/tasks/${projectId}/t/${taskId}/ai-logs`, { params }),
+  updateRequirements: (projectId, taskId, data) =>
+    api.put(`/tasks/${projectId}/t/${taskId}/requirements`, data),
+  requestAiEvaluate: (projectId, taskId, data = {}) =>
+    api.post(`/tasks/${projectId}/t/${taskId}/ai-evaluate`, data),
 };
 
 // ─── NOTES ────────────────────────────────────────────────────────────────────

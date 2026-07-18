@@ -4,7 +4,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { motion } from "framer-motion";
 import { useAuth } from "../../context/authcontext.jsx";
 import { EASE, EASE_OUT } from "../../motion/tokens";
-import { DueDateBadge, TaskKeyBadge } from "./primitive.jsx";
+import { DueDateBadge, TaskKeyBadge, AiLockDot } from "./primitive.jsx";
 
 const PRIORITY = {
   high: { label: "HIGH", color: "var(--danger)", soft: "var(--danger-soft)" },
@@ -120,6 +120,7 @@ export default function TaskCard({ task, onClick, onToggleComplete, overlay = fa
 
         <div style={S.foot}>
           <TaskKeyBadge taskKey={task.taskKey} />
+          <AiLockDot status={task.aiLockStatus} />
           <span style={{ ...S.tag, background: priority.soft, color: priority.color }}>
             {priority.label}
           </span>

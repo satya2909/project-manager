@@ -740,4 +740,16 @@ select:focus-visible,
   .text-display-xl { font-size: 1.5rem; }
   .text-display-lg { font-size: 1.2rem; }
   .modal-panel     { padding: 1.4rem; }
+
+  /* AI DoD requirements editor (plans/ai-dod-plan.md Phase 5.2) — a full-screen
+     sheet below the tablet breakpoint, matching the existing mobile pattern
+     for other inline-edit surfaces, rather than a cramped inline expansion. */
+  .requirements-editor {
+    position: fixed;
+    inset: 0;
+    z-index: 60;
+    background: var(--panel);
+    padding: 16px;
+    overflow-y: auto;
+  }
 }

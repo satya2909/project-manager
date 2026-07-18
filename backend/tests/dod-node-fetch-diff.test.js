@@ -30,6 +30,28 @@ describe("fetchDiff (Node 5)", () => {
     expect(s.diff.files).toEqual([{ path: "src/index.js" }]);
   });
 
+  it("falls back to the compare diff when there is no PR (manual/Verify now path)", async () => {
+    const getInstallationToken = vi.fn(async () => "tok");
+    const fetchDiffImpl = vi.fn(async () => "should not be called");
+    const fetchCompareDiffImpl = vi.fn(
+      async () => "diff --git a/src/index.js b/src/index.js\n+added\n",
+    );
+
+    const s = state();
+    s.repo.prNumber = null;
+    s.repo.baseSha = "main";
+    s.pinnedSha = "sha1";
+
+    const result = await fetchDiff(s, { getInstallationToken, fetchDiffImpl, fetchCompareDiffImpl });
+
+    expect(result.exit).toBeNull();
+    expect(fetchDiffImpl).not.toHaveBeenCalled();
+    expect(fetchCompareDiffImpl).toHaveBeenCalledWith(
+      expect.objectContaining({ owner: "acme", repo: "camp", base: "main", head: "sha1", token: "tok" }),
+    );
+    expect(result.diff.files).toEqual([{ path: "src/index.js" }]);
+  });
+
   it("retries on GitHub failure up to 3 times, then fails open with PASSED_BY_SYSTEM_ERROR", async () => {
     const getInstallationToken = vi.fn(async () => "tok");
     const fetchDiffImpl = vi.fn(async () => {

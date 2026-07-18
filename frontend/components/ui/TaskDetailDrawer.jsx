@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Drawer } from "./Modal.jsx";
 import { Button, Label, TaskKeyBadge } from "./primitive.jsx";
+import VerificationPanel from "./VerificationPanel.jsx";
 import { EASE, EASE_OUT } from "../../motion/tokens";
 import taskService from "../../services/task.service.js";
 
@@ -212,6 +213,7 @@ export default function TaskDetailDrawer({
   onUpdate,
   onDelete,
   canManage = false,
+  repoFullName = null,
 }) {
   const [localTask, setLocalTask] = useState(task);
   const [saving, setSaving] = useState(false);
@@ -393,6 +395,14 @@ export default function TaskDetailDrawer({
 
           {canManage && <AddSubtaskInput projectId={projectId} taskId={localTask._id} onAdded={handleSubtaskAdd} />}
         </div>
+
+        <div className="divider" />
+        <VerificationPanel
+          task={localTask}
+          projectId={projectId}
+          repoFullName={repoFullName}
+          canManage={canManage}
+        />
 
         {localTask.attachments?.length > 0 && (
           <>
