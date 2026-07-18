@@ -10,6 +10,14 @@ const attachmentSchema = new Schema(
       type: String,
       required: true,
     },
+    // Object storage key (Cloudflare R2), used to delete the underlying file.
+    // Optional/nullable — an attachment uploaded before the object-storage
+    // migration has no key (it lived at a local `/images/...` path instead);
+    // deleteTaskAttachment falls back for those, it doesn't fail on them.
+    key: {
+      type: String,
+      default: null,
+    },
     mimetype: {
       type: String,
       required: true,

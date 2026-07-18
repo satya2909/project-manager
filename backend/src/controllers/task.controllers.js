@@ -22,6 +22,11 @@ import { dodQueue } from "../queue/dod-queue-instance.js";
 import { getInstallationToken } from "../services/github-app.service.js";
 import { tokenCache, getGithubAppConfig } from "../services/github-app-config.js";
 import { getRefSha } from "../dod/github/refs.js";
+import {
+  uploadObject,
+  deleteObject,
+  isObjectStorageConfigured,
+} from "../services/object-storage.js";
 
 // Above this task count, GET /timeline and the dependency cycle-check both
 // fetch the project's full task set in one query — a tripwire log, not a
@@ -565,6 +570,19 @@ export const deleteTask = asyncHandler(async (req, res) => {
     { $pull: { dependsOn: taskId } },
   );
 
+  // R2 objects — best-effort, non-blocking (a storage-provider blip
+  // shouldn't stop the task itself from being deleted).
+  await Promise.all(
+    (task.attachments ?? [])
+      .filter((a) => a.key)
+      .map((a) =>
+        deleteObject({ key: a.key }).catch((e) =>
+          console.error("[object-storage] delete failed on task delete:", e.message),
+        ),
+      ),
+  );
+
+  // Legacy local uploads from before the object-storage migration.
   const uploadDir = path.join(
     process.cwd(),
     "public",
@@ -719,8 +737,21 @@ export const deleteSubTask = asyncHandler(async (req, res) => {
 });
 
 // ─── POST /tasks/:projectId/t/:taskId/attachments ─────────────────────────────
+// Sanitizes an original filename into a storage-key-safe basename — same
+// rule the old disk-storage filename() function used, kept for continuity.
+function safeKeyBasename(originalname, ext) {
+  return path
+    .basename(originalname, ext)
+    .replace(/\s+/g, "-")
+    .replace(/[^a-zA-Z0-9-_]/g, "");
+}
+
 export const addTaskAttachments = asyncHandler(async (req, res) => {
-  const { taskId } = req.params;
+  const { taskId, projectId } = req.params;
+
+  if (!isObjectStorageConfigured()) {
+    throw new ApiError(503, "File uploads aren't configured on this deployment yet");
+  }
 
   const task = await Task.findOne({ _id: taskId, project: req.project._id });
   if (!task) {
@@ -733,19 +764,29 @@ export const addTaskAttachments = asyncHandler(async (req, res) => {
 
   const totalAfterUpload = task.attachments.length + req.files.length;
   if (totalAfterUpload > 5) {
-    req.files.forEach((f) => fs.existsSync(f.path) && fs.unlinkSync(f.path));
     throw new ApiError(
       400,
       `This task already has ${task.attachments.length} attachment(s). Maximum is 5.`,
     );
   }
 
-  const newAttachments = req.files.map((file) => ({
-    url: `/images/${req.params.projectId}/${taskId}/${file.filename}`,
-    mimetype: file.mimetype,
-    size: file.size,
-    originalName: file.originalname,
-  }));
+  const newAttachments = await Promise.all(
+    req.files.map(async (file) => {
+      const ext = path.extname(file.originalname).toLowerCase();
+      const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
+      const key = `attachments/${projectId}/${taskId}/${safeKeyBasename(file.originalname, ext)}-${uniqueSuffix}${ext}`;
+
+      const url = await uploadObject({ key, body: file.buffer, contentType: file.mimetype });
+
+      return {
+        url,
+        key,
+        mimetype: file.mimetype,
+        size: file.size,
+        originalName: file.originalname,
+      };
+    }),
+  );
 
   const updatedTask = await Task.findByIdAndUpdate(
     taskId,
@@ -778,9 +819,21 @@ export const deleteTaskAttachment = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Attachment not found");
   }
 
-  const filePath = path.join(process.cwd(), "public", attachment.url);
-  if (fs.existsSync(filePath)) {
-    fs.unlinkSync(filePath);
+  if (attachment.key) {
+    try {
+      await deleteObject({ key: attachment.key });
+    } catch (e) {
+      // Non-fatal — the DB reference is still removed below. A dangling R2
+      // object outlives a failed delete; a dangling DB reference to a
+      // 404ing URL is the worse failure mode.
+      console.error("[object-storage] delete failed:", e.message);
+    }
+  } else {
+    // Legacy attachment from before the object-storage migration.
+    const filePath = path.join(process.cwd(), "public", attachment.url);
+    if (fs.existsSync(filePath)) {
+      fs.unlinkSync(filePath);
+    }
   }
 
   const updatedTask = await Task.findByIdAndUpdate(

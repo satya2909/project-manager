@@ -1,6 +1,4 @@
 import multer from "multer";
-import path from "path";
-import fs from "fs";
 import { ApiError } from "../utils/api-error.js";
 import {
   ALLOWED_MIME_TYPES,
@@ -11,33 +9,14 @@ import {
 } from "../utils/constants.js";
 
 // ─── Storage Engine ───────────────────────────────────────────────────────────
-// Files land at: public/images/<projectId>/<taskId>/<sanitised-filename>
-// projectId and taskId are available from req.params at upload time.
+// In-memory — task attachments are uploaded straight through to Cloudflare R2
+// (backend/src/services/object-storage.js) rather than written to local disk.
+// Render web services have no persistent disk by default, so diskStorage
+// silently lost every attachment on a deploy/restart (plans/TODOS.md's
+// re-audited deployment blocker). Same pattern the bulk-invite sheet upload
+// below already used.
 
-const storage = multer.diskStorage({
-  destination: (req, _file, cb) => {
-    const { projectId, taskId } = req.params;
-    const uploadPath = path.join(
-      process.cwd(),
-      "public",
-      "images",
-      projectId || "tmp",
-      taskId || "tmp",
-    );
-    fs.mkdirSync(uploadPath, { recursive: true });
-    cb(null, uploadPath);
-  },
-
-  filename: (_req, file, cb) => {
-    const uniqueSuffix = `${Date.now()}-${Math.round(Math.random() * 1e6)}`;
-    const ext = path.extname(file.originalname).toLowerCase();
-    const basename = path
-      .basename(file.originalname, ext)
-      .replace(/\s+/g, "-")
-      .replace(/[^a-zA-Z0-9-_]/g, "");
-    cb(null, `${basename}-${uniqueSuffix}${ext}`);
-  },
-});
+const storage = multer.memoryStorage();
 
 // ─── File Filter ──────────────────────────────────────────────────────────────
 const fileFilter = (_req, file, cb) => {
