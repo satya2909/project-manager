@@ -1,7 +1,12 @@
 // backend/eval/run.js
 //
-// Phase 0.2 (plans/ai-dod-plan.md) — runs the labeled eval set through the
-// DoD pipeline (a stub until Phase 4 lands) and reports the target metrics.
+// Phase 0.2 / Phase 4 (plans/ai-dod-plan.md) — runs the labeled eval set
+// through the real DoD pipeline (backend/eval/pipeline-adapter.js) and
+// reports the target metrics. Every case still runs even without
+// ANTHROPIC_API_KEY/DOD_LLM_MODEL or GitHub App credentials configured —
+// each node's own fail-open contract reports PASSED_BY_SYSTEM_ERROR for
+// that case instead of crashing the run, exactly like it would in
+// production (plans/PRD_v2.md §7.3).
 //
 // Usage: npm run eval:dod
 
@@ -18,27 +23,12 @@ import {
   failuresByBucket,
 } from "./metrics.js";
 import { formatReport } from "./report.js";
+import { evaluateWithRealPipeline } from "./pipeline-adapter.js";
+import { PROMPT_VERSION } from "../src/dod/prompts/_version.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DOD_SET_PATH = path.join(__dirname, "dod-set.json");
-const PROMPT_VERSION = "v0-stub";
-const MODEL = "none";
-
-// Stub pipeline (Phase 3.5 / Phase 4 not built yet): always APPROVED, no
-// citations, no cost, no latency. Exists so the harness's contract (load set
-// → run → report against targets) is provable before there's a real model
-// behind it. Real numbers replace this wiring in Phase 4, not this file's
-// structure.
-function stubEvaluate(evalCase) {
-  return {
-    label: evalCase.label,
-    bucket: evalCase.bucket,
-    predicted: "APPROVED",
-    citations: [],
-    durationMs: 0,
-    costUsd: 0,
-  };
-}
+const MODEL = process.env.DOD_LLM_MODEL || "claude-sonnet-4-6";
 
 export function loadDodSet(filePath = DOD_SET_PATH) {
   const raw = readFileSync(filePath, "utf-8");
@@ -46,8 +36,8 @@ export function loadDodSet(filePath = DOD_SET_PATH) {
   return cases.filter((c) => c.label !== null);
 }
 
-export function runEval(cases, evaluate = stubEvaluate) {
-  const results = cases.map(evaluate);
+export async function runEval(cases, evaluate = evaluateWithRealPipeline) {
+  const results = await Promise.all(cases.map(evaluate));
   return {
     promptVersion: PROMPT_VERSION,
     model: MODEL,
@@ -73,6 +63,13 @@ if (isMain) {
         "  Reporting against 0 cases below — this is expected until labeling is done.",
     );
   }
-  const metrics = runEval(cases);
+  if (!process.env.ANTHROPIC_API_KEY) {
+    console.error(
+      "⚠ ANTHROPIC_API_KEY is not set — every case's requirements-decomposition call\n" +
+        "  (Node 4) will fail and report PASSED_BY_SYSTEM_ERROR. Numbers below are not\n" +
+        "  real accuracy numbers until it's configured (see docs/github-app-setup.md).",
+    );
+  }
+  const metrics = await runEval(cases);
   console.log(formatReport(metrics));
 }
