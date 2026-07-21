@@ -38,10 +38,21 @@ const { token, installState } = createSharedCache();
 export const tokenCache = token;
 export const installStateCache = installState;
 
+// Most env var editors (Render's included) are single-line text boxes, so a
+// PEM private key — which needs real line breaks — has to be pasted with
+// literal `\n` escapes instead. jwt.sign()'s RS256 signing requires an
+// actual multi-line PEM string, so that escaping has to be undone here.
+// Safe either way: a key already using real newlines has no literal `\n`
+// sequences for this to match, so this is a no-op for local-dev-style
+// multi-line .env values.
+function normalizePrivateKey(key) {
+  return key ? key.replace(/\\n/g, "\n") : key;
+}
+
 export function getGithubAppConfig() {
   return {
     appId: process.env.GITHUB_APP_ID,
-    privateKey: process.env.GITHUB_APP_PRIVATE_KEY,
+    privateKey: normalizePrivateKey(process.env.GITHUB_APP_PRIVATE_KEY),
     clientId: process.env.GITHUB_APP_CLIENT_ID,
     clientSecret: process.env.GITHUB_APP_CLIENT_SECRET,
     webhookSecret: process.env.GITHUB_WEBHOOK_SECRET,
