@@ -180,6 +180,77 @@ describe("GitHub App integration routes", () => {
       expect(replay.status).toBe(400);
     });
 
+    it("accepts a setup_action=update redirect with no state, for an installation already bound to the caller's org", async () => {
+      const { owner } = await createOrg();
+
+      const urlRes = await request(app)
+        .get("/api/v1/integrations/github/install-url")
+        .set("Authorization", `Bearer ${tokenFor(owner)}`);
+      const state = new URL(urlRes.body.data.url).searchParams.get("state");
+
+      await request(app)
+        .get("/api/v1/integrations/github/callback")
+        .query({ installation_id: "999", state })
+        .set("Authorization", `Bearer ${tokenFor(owner)}`);
+
+      // Simulates reconfiguring repo access directly on GitHub's own
+      // installation settings page — GitHub redirects here with
+      // installation_id + setup_action=update, but no state.
+      const updateRes = await request(app)
+        .get("/api/v1/integrations/github/callback")
+        .query({ installation_id: "999", setup_action: "update" })
+        .set("Authorization", `Bearer ${tokenFor(owner)}`);
+
+      expect(updateRes.status).toBe(302);
+      expect(updateRes.headers.location).toBe(
+        "http://localhost:5173/organization?tab=integrations&github=connected",
+      );
+    });
+
+    it("rejects a setup_action=update redirect for an installation bound to a different org", async () => {
+      const { owner: ownerA } = await createOrg();
+      const { owner: ownerB } = await createOrg();
+
+      const urlRes = await request(app)
+        .get("/api/v1/integrations/github/install-url")
+        .set("Authorization", `Bearer ${tokenFor(ownerA)}`);
+      const state = new URL(urlRes.body.data.url).searchParams.get("state");
+
+      await request(app)
+        .get("/api/v1/integrations/github/callback")
+        .query({ installation_id: "999", state })
+        .set("Authorization", `Bearer ${tokenFor(ownerA)}`);
+
+      const updateRes = await request(app)
+        .get("/api/v1/integrations/github/callback")
+        .query({ installation_id: "999", setup_action: "update" })
+        .set("Authorization", `Bearer ${tokenFor(ownerB)}`);
+
+      expect(updateRes.status).toBe(403);
+    });
+
+    it("rejects a setup_action=update redirect for an installation ID we've never seen", async () => {
+      const { owner } = await createOrg();
+
+      const res = await request(app)
+        .get("/api/v1/integrations/github/callback")
+        .query({ installation_id: "424242", setup_action: "update" })
+        .set("Authorization", `Bearer ${tokenFor(owner)}`);
+
+      expect(res.status).toBe(404);
+    });
+
+    it("rejects a callback with neither state nor a recognized setup_action", async () => {
+      const { owner } = await createOrg();
+
+      const res = await request(app)
+        .get("/api/v1/integrations/github/callback")
+        .query({ installation_id: "999" })
+        .set("Authorization", `Bearer ${tokenFor(owner)}`);
+
+      expect(res.status).toBe(400);
+    });
+
     it("GET /github returns connected:false when nothing is installed", async () => {
       const { owner } = await createOrg();
       const res = await request(app)

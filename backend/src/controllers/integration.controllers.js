@@ -42,28 +42,51 @@ export const getInstallUrl = asyncHandler(async (req, res) => {
 });
 
 // ─── GET /integrations/github/callback ─────────────────────────────────────────
-// GitHub redirects the browser here after install with ?installation_id=&state=.
-// Requires the caller to still be authenticated as the org owner who started
-// the flow — the state ties back to their organization, not just any org.
+// GitHub redirects the browser here in two distinct cases (same Setup URL,
+// "Redirect on update" checked):
+//   1. A fresh install started from OUR "Connect GitHub" button — carries
+//      both installation_id and the state token minted by getInstallUrl.
+//      The state is what ties this installation to a specific org.
+//   2. A repo-access change made directly on GitHub's own installation
+//      settings page (not through this app) — carries installation_id and
+//      setup_action=update, but no state, since no install flow here
+//      originated it. Since nothing is being newly bound to an org here,
+//      org ownership is instead verified by requiring the installation to
+//      already belong to the caller's org in our own DB.
 export const githubCallback = asyncHandler(async (req, res) => {
   assertConfigured();
-  const { installation_id: installationId, state } = req.query;
+  const { installation_id: installationId, state, setup_action: setupAction } = req.query;
 
-  if (!installationId || !state) {
-    throw new ApiError(400, "Missing installation_id or state");
+  if (!installationId) {
+    throw new ApiError(400, "Missing installation_id");
   }
 
-  const { stateSecret, appId, privateKey } = getGithubAppConfig();
-  const { organizationId } = await consumeInstallState({
-    state,
-    secret: stateSecret,
-    cache: installStateCache,
-  }).catch(() => {
-    throw new ApiError(400, "Invalid or expired install state");
-  });
+  const { appId, privateKey } = getGithubAppConfig();
+  let organizationId;
+
+  if (state) {
+    const { stateSecret } = getGithubAppConfig();
+    ({ organizationId } = await consumeInstallState({
+      state,
+      secret: stateSecret,
+      cache: installStateCache,
+    }).catch(() => {
+      throw new ApiError(400, "Invalid or expired install state");
+    }));
+  } else if (setupAction === "update") {
+    const existing = await GithubInstallation.findOne({
+      installationId: Number(installationId),
+    }).lean();
+    if (!existing) {
+      throw new ApiError(404, "No known installation to update — connect GitHub from Project Camp first");
+    }
+    organizationId = existing.organization.toString();
+  } else {
+    throw new ApiError(400, "Missing state");
+  }
 
   if (organizationId !== req.user.organization.toString()) {
-    throw new ApiError(403, "Install state does not match your organization");
+    throw new ApiError(403, "Installation does not belong to your organization");
   }
 
   // Fetch the account login for display — best-effort, don't fail the
