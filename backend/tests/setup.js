@@ -10,6 +10,7 @@ beforeAll(async () => {
   process.env.ACCESS_TOKEN_SECRET = "test-access-secret";
   process.env.REFRESH_TOKEN_SECRET = "test-refresh-secret";
   process.env.NODE_ENV = "test";
+  process.env.CLIENT_URL = "http://localhost:5173";
 
   mongoServer = await MongoMemoryServer.create();
   process.env.MONGO_URI = mongoServer.getUri();

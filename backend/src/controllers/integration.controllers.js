@@ -82,7 +82,7 @@ export const githubCallback = asyncHandler(async (req, res) => {
     /* non-fatal — see comment above */
   }
 
-  const installation = await GithubInstallation.findOneAndUpdate(
+  await GithubInstallation.findOneAndUpdate(
     { organization: req.user.organization },
     {
       organization: req.user.organization,
@@ -94,9 +94,11 @@ export const githubCallback = asyncHandler(async (req, res) => {
     { upsert: true, new: true },
   );
 
-  return res
-    .status(200)
-    .json(new ApiResponses(200, { installation }, "GitHub App connected"));
+  // GitHub redirects the *browser* here — a raw JSON response would just
+  // dump API output in the tab instead of landing the user back in the app.
+  // The installation above is already saved by this point regardless of
+  // whether this redirect succeeds.
+  return res.redirect(`${process.env.CLIENT_URL}/organization?tab=integrations&github=connected`);
 });
 
 // ─── GET /integrations/github ──────────────────────────────────────────────────

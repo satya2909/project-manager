@@ -612,8 +612,18 @@ function InvitesTab() {
 }
 
 // ─── ORGANIZATION PAGE ────────────────────────────────────────────────────────
+const VALID_TABS = TABS.map((t) => t.id);
+
 export default function OrganizationPage() {
-  const [tab, setTab] = useState("settings");
+  // The GitHub App callback (integration.controllers.js) redirects the
+  // browser back here with ?tab=integrations&github=connected — land
+  // directly on that tab instead of defaulting to Settings.
+  const initialTab = (() => {
+    const requested = new URLSearchParams(window.location.search).get("tab");
+    return VALID_TABS.includes(requested) ? requested : "settings";
+  })();
+
+  const [tab, setTab] = useState(initialTab);
   const [org, setOrg] = useState(null);
   const [loading, setLoading] = useState(true);
 

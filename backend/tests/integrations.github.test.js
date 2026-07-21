@@ -131,12 +131,16 @@ describe("GitHub App integration routes", () => {
         .query({ installation_id: "999", state })
         .set("Authorization", `Bearer ${tokenFor(owner)}`);
 
-      expect(callbackRes.status).toBe(200);
-      expect(callbackRes.body.data.installation.installationId).toBe(999);
-      expect(callbackRes.body.data.installation.accountLogin).toBe("acme");
+      // GitHub redirects the browser here — the browser should be sent back
+      // into the app, not shown a raw JSON response.
+      expect(callbackRes.status).toBe(302);
+      expect(callbackRes.headers.location).toBe(
+        "http://localhost:5173/organization?tab=integrations&github=connected",
+      );
 
       const stored = await GithubInstallation.findOne({ organization: owner.organization });
       expect(stored.installationId).toBe(999);
+      expect(stored.accountLogin).toBe("acme");
     });
 
     it("rejects a callback whose state belongs to a different organization", async () => {
